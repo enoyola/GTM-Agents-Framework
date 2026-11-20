@@ -1,0 +1,16 @@
+{
+  "currency": "USD",
+  "exception_owner": "Commercial lead",
+  "valid_days": 30,
+  "packages": [
+    {
+      "id": "approval-pilot",
+      "name": "Approval workflow pilot",
+      "scope": "Map the artwork approval process and deliver a pilot outline for Operations.",
+      "list_price": "1000.00",
+      "floor": "850.00",
+      "max_discount_pct": "10.00",
+      "payment_days": 30
+    }
+  ]
+}

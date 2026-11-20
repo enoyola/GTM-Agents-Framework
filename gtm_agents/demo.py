@@ -1,4 +1,5 @@
 """Fictional, idempotent demo fixtures; no imported prospects or customer outcomes."""
+from .deal_desk import DEMO_POLICY
 from .discovery import DEMO_RUBRIC
 from .store import DomainError
 
@@ -14,7 +15,7 @@ def seed(store):
             'segment':'Fictional operations teams used to demonstrate the control room.',
             'priority_exclusions':'Business has closed permanently.',
             'approved_claims':['Example Studio explores scoped workflow automation pilots; actual workflow and access need validation.'],
-            'qualification_rubric':DEMO_RUBRIC,
+            'qualification_rubric':DEMO_RUBRIC, 'deal_policy':DEMO_POLICY,
         })
     existing={a['domain'] for a in state['accounts']}
     for name,domain,segment,claim in [

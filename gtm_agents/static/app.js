@@ -8,7 +8,7 @@ const content = document.getElementById('content');
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const label = value => String(value || '').replaceAll('_',' ');
 const date = value => new Date(value * 1000).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-const roleName = role => ({discovery_qualification:'Discovery and Qualification',reply_triage:'Reply Triage',prioritizer:'Account Prioritization',research:'Research',sales:'Sales',evaluator:'Evaluator',orchestrator:'Orchestrator'}[role] || role);
+const roleName = role => ({deal_desk:'Deal Desk',discovery_qualification:'Discovery and Qualification',reply_triage:'Reply Triage',prioritizer:'Account Prioritization',research:'Research',sales:'Sales',evaluator:'Evaluator',orchestrator:'Orchestrator'}[role] || role);
 const badge = (text, style='') => `<span class="badge ${style}">${esc(text)}</span>`;
 const taskFor = id => state.tasks.find(t => t.account_id === id && ['queued','running'].includes(t.status));
 const head = (title, subtitle, action='') => `<div class="page-head"><div><div class="eyebrow">GTM OPERATIONS</div><h1>${title}</h1><p class="subtitle">${subtitle}</p></div>${action}</div>`;
@@ -144,6 +144,36 @@ function discoveryHistory(account, task) {
     </div>${cards.join('')}</div>`;
 }
 
+function dealHistory(account, task) {
+  const rows = state.deal_proposals.filter(row => row.account_id === account.id);
+  const disabled = task || account.suppressed || state.config.paused || !state.runtime.ready || !state.config.deal_policy;
+  const cards = rows.map(row => {
+    const result = row.result, pkg = row.package, req = row.request;
+    const status = result ? (row.reviewed_at ? 'Reviewed' : 'Needs review') : label(row.status);
+    const expired = Date.now() / 1000 >= row.expires_at;
+    const issues = [...(pkg?.exceptions || []), ...(result?.open_items || [])];
+    return `<article class="evidence-item">${badge(status)} <small>${esc(date(row.created_at))}</small>
+      ${result ? `<h3>${esc(label(result.recommendation))}${pkg ? ' · '+esc(pkg.name) : ''}</h3>
+      <p>${esc(result.fit_summary)}</p><blockquote>${esc(result.basis_quote)}</blockquote>` : ''}
+      ${pkg ? `<p>${esc(pkg.scope)}</p><strong>Requested net · ${esc(row.currency)} ${esc(pkg.net_price)}</strong>
+      <p class="hint">List ${esc(pkg.list_price)} · Discount ${esc(pkg.discount_amount)} (${esc(req.discount_pct)}%) · Credit ${esc(req.credit)}
+      · Floor ${esc(pkg.floor)} · Concession limit ${esc(pkg.max_discount_pct)}% · Requested payment ${esc(pkg.requested_payment_days)} days (standard ${esc(pkg.payment_days)})</p>` : ''}
+      ${issues.length ? `<ul>${issues.map(issue=>`<li>${esc(issue)}</li>`).join('')}</ul>` : ''}
+      ${result?.recommendation === 'exception' ? `<p>Exception owner · ${esc(row.exception_owner)}</p>` : ''}
+      <details><summary>Request and policy version</summary><p>${esc(req.buyer_requirements)}</p>
+      ${req.special_terms ? `<p>Additional terms · ${esc(req.special_terms)}</p>` : ''}
+      ${req.discovery_task_id ? `<p>Discovery brief · ${esc(req.discovery_task_id)}</p>` : ''}
+      <p>Policy version ${esc(row.policy_version)} · ${expired ? 'Expired' : 'Valid until'} ${esc(date(row.expires_at))}
+      ${row.policy_version !== state.config.version ? ' · Configuration has changed' : ''}</p></details>
+      ${row.error ? `<p class="task-error">${esc(row.error)}</p>` : ''}
+      ${result && !row.reviewed_at ? `<button class="text-button" data-action="review-deal" data-id="${esc(row.task_id)}">Mark reviewed</button>` : ''}
+    </article>`;
+  });
+  return `<div class="detail-section"><div class="section-label">DEAL DESK
+    <button class="button small secondary" data-action="deal" ${disabled?'disabled':''}>Prepare a deal proposal</button></div>
+    ${state.config.deal_policy ? '' : '<p class="hint">Add approved packages in Business setup to enable Deal Desk.</p>'}${cards.join('')}</div>`;
+}
+
 function accountDetail(a) {
   const evidence=state.evidence.filter(e=>e.account_id===a.id);
   const draft=state.drafts.find(d=>d.account_id===a.id);
@@ -151,7 +181,7 @@ function accountDetail(a) {
   const runs=state.agent_runs.filter(r=>r.task_id===(draft?.task_id || task?.id));
   const evaluator=runs.find(r=>r.role==='evaluator');
   const stale=draft && (draft.account_version!==a.version || draft.config_version!==state.config.version);
-  return `<div class="detail-header"><div class="detail-title"><span class="company-mark">${esc(a.name.slice(0,2).toUpperCase())}</span><div><h2>${esc(a.name)}</h2><small>${esc(a.domain)} · ${a.is_demo?'Fictional account':'Local record'}</small></div></div>${badge('Owner: '+a.owner)}</div><div class="workflow"><div class="workflow-step done"><span class="step-number">01</span>Evidence</div><div class="workflow-step ${draft?.status==='needs_review'?'done':''}"><span class="step-number">02</span>Draft</div><div class="workflow-step"><span class="step-number">03</span>Review</div></div><div class="detail-section"><div class="section-label"><span>ACCOUNT EVIDENCE</span><button class="text-button" data-action="add-evidence">＋ Add source</button></div>${evidence.slice(0,6).map(e=>`<div class="evidence-item"><p>${esc(e.claim)}</p><div class="source">${esc(label(e.kind))} · ${esc(e.source)}<br>${esc(e.id)}</div></div>`).join('')}<div class="detail-actions"><button class="button small" data-action="review" ${a.suppressed||task||state.config.paused?'disabled':''}>${task?'Account work in progress…':draft?'Run new review':'Run account review'}</button>${!a.suppressed?'<button class="button small danger" data-action="suppress">Suppress account</button>':badge('Suppressed','warn')}</div><p class="hint spaced">${state.demo?'Scripted demo: research → draft → evaluation.':state.runtime.provider==='codex'?'Separate Codex agents: research → draft → evaluation. Queue a task here, then ask Codex to execute it.':'Three bounded model calls: research → draft → evaluation. Reviews use accepted account evidence. Run public research below to propose new findings.'}</p></div>${accountPriority(a,task)}${replyHistory(a,task)}${discoveryHistory(a,task)}${researchDetail(a)}<div class="detail-section"><div class="section-label"><span>${draft?.status==='blocked'?'HELD REVIEW':'LATEST OUTREACH DRAFT'}</span>${draft?badge(stale?'Inputs changed':label(draft.status),stale||draft.status==='blocked'?'warn':''):''}</div>${draft?`<div class="draft-body">${esc(draft.body)}</div><div class="detail-actions"><button class="button secondary small" data-action="check-draft" data-id="${draft.id}">Check action readiness</button></div><p class="source">Sources: ${esc(draft.evidence_ids.join(', '))}</p>`:'<p class="hint">The sales agent will prepare a draft after reviewing the account evidence. All drafts remain local.</p>'}</div>${evaluator?`<div class="detail-section"><div class="section-label">EVALUATOR NOTES</div><p class="draft-body">${esc(evaluator.output.content)}</p></div>`:''}`;
+  return `<div class="detail-header"><div class="detail-title"><span class="company-mark">${esc(a.name.slice(0,2).toUpperCase())}</span><div><h2>${esc(a.name)}</h2><small>${esc(a.domain)} · ${a.is_demo?'Fictional account':'Local record'}</small></div></div>${badge('Owner: '+a.owner)}</div><div class="workflow"><div class="workflow-step done"><span class="step-number">01</span>Evidence</div><div class="workflow-step ${draft?.status==='needs_review'?'done':''}"><span class="step-number">02</span>Draft</div><div class="workflow-step"><span class="step-number">03</span>Review</div></div><div class="detail-section"><div class="section-label"><span>ACCOUNT EVIDENCE</span><button class="text-button" data-action="add-evidence">＋ Add source</button></div>${evidence.slice(0,6).map(e=>`<div class="evidence-item"><p>${esc(e.claim)}</p><div class="source">${esc(label(e.kind))} · ${esc(e.source)}<br>${esc(e.id)}</div></div>`).join('')}<div class="detail-actions"><button class="button small" data-action="review" ${a.suppressed||task||state.config.paused?'disabled':''}>${task?'Account work in progress…':draft?'Run new review':'Run account review'}</button>${!a.suppressed?'<button class="button small danger" data-action="suppress">Suppress account</button>':badge('Suppressed','warn')}</div><p class="hint spaced">${state.demo?'Scripted demo: research → draft → evaluation.':state.runtime.provider==='codex'?'Separate Codex agents: research → draft → evaluation. Queue a task here, then ask Codex to execute it.':'Three bounded model calls: research → draft → evaluation. Reviews use accepted account evidence. Run public research below to propose new findings.'}</p></div>${accountPriority(a,task)}${replyHistory(a,task)}${discoveryHistory(a,task)}${dealHistory(a,task)}${researchDetail(a)}<div class="detail-section"><div class="section-label"><span>${draft?.status==='blocked'?'HELD REVIEW':'LATEST OUTREACH DRAFT'}</span>${draft?badge(stale?'Inputs changed':label(draft.status),stale||draft.status==='blocked'?'warn':''):''}</div>${draft?`<div class="draft-body">${esc(draft.body)}</div><div class="detail-actions"><button class="button secondary small" data-action="check-draft" data-id="${draft.id}">Check action readiness</button></div><p class="source">Sources: ${esc(draft.evidence_ids.join(', '))}</p>`:'<p class="hint">The sales agent will prepare a draft after reviewing the account evidence. All drafts remain local.</p>'}</div>${evaluator?`<div class="detail-section"><div class="section-label">EVALUATOR NOTES</div><p class="draft-body">${esc(evaluator.output.content)}</p></div>`:''}`;
 }
 
 function sourceLink(source) {
@@ -197,7 +227,7 @@ function researchDetail(a) {
 }
 
 function teamStrip() {
-  return `<div class="team-strip">${[['D','Discovery and Qualification','Qualifies buyer conversations'],['T','Reply Triage','Routes incoming replies'],['P','Account Prioritization','Assesses account fit'],['O','Orchestrator','Closes strategy discussions'],['R','Research','Checks account evidence'],['S','Sales','Prepares conversations'],['E','Evaluator','Challenges assumptions']].map(([initial,name,desc])=>`<div class="agent-chip"><span class="agent-avatar">${initial}</span><div><strong>${name}</strong><small>${desc}</small></div></div>`).join('')}</div>`;
+  return `<div class="team-strip">${[['D','Deal Desk','Prepares commercial reviews'],['D','Discovery and Qualification','Qualifies buyer conversations'],['T','Reply Triage','Routes incoming replies'],['P','Account Prioritization','Assesses account fit'],['O','Orchestrator','Closes strategy discussions'],['R','Research','Checks account evidence'],['S','Sales','Prepares conversations'],['E','Evaluator','Challenges assumptions']].map(([initial,name,desc])=>`<div class="agent-chip"><span class="agent-avatar">${initial}</span><div><strong>${name}</strong><small>${desc}</small></div></div>`).join('')}</div>`;
 }
 
 function renderStrategy() {
@@ -231,9 +261,41 @@ function eventSummary(e) {
   return Object.entries(d).map(([k,v])=>`${label(k)}: ${v}`).join(' · ') || 'Recorded in this workspace';
 }
 
+function packageEditor(pkg={}) {
+  return `<fieldset data-package><legend>Package</legend>
+    <div class="form-grid"><label>Package ID<input data-key="id" required maxlength="60" value="${esc(pkg.id)}"></label>
+    <label>Package name<input data-key="name" required maxlength="160" value="${esc(pkg.name)}"></label></div>
+    <label>Approved scope<textarea data-key="scope" required maxlength="1500">${esc(pkg.scope)}</textarea></label>
+    <div class="form-grid"><label>List price<input data-key="list_price" type="number" min="0.01" step="0.01" required value="${esc(pkg.list_price)}"></label>
+    <label>Price floor<input data-key="floor" type="number" min="0" step="0.01" required value="${esc(pkg.floor)}"></label>
+    <label>Maximum combined discount (%)<input data-key="max_discount_pct" type="number" min="0" max="100" step="0.01" required value="${esc(pkg.max_discount_pct)}"></label>
+    <label>Standard payment days<input data-key="payment_days" type="number" min="0" max="3650" required value="${esc(pkg.payment_days)}"></label></div>
+    <button type="button" class="text-button" data-action="remove-package">Remove package</button></fieldset>`;
+}
+
+function policyEditor(policy) {
+  return `<details><summary>Deal Desk catalog and pricing policy</summary>
+    <div class="form-grid"><label>Currency code<input data-policy="currency" maxlength="3" placeholder="USD" value="${esc(policy?.currency)}"></label>
+    <label>Proposal validity (days)<input data-policy="valid_days" type="number" min="1" max="3650" value="${esc(policy?.valid_days)}"></label></div>
+    <label>Commercial exception owner<input data-policy="exception_owner" maxlength="160" value="${esc(policy?.exception_owner)}"></label>
+    <div id="package-list">${(policy?.packages || []).map(packageEditor).join('')}</div>
+    <button type="button" class="text-button" data-action="add-package">Add approved package</button></details>`;
+}
+
+function readPolicy(form) {
+  const packages = [...form.querySelectorAll('[data-package]')].map(row => {
+    const pkg = Object.fromEntries([...row.querySelectorAll('[data-key]')].map(input=>[input.dataset.key,input.value]));
+    pkg.payment_days = Number(pkg.payment_days);
+    return pkg;
+  });
+  if (!packages.length) return null;
+  const policy = Object.fromEntries([...form.querySelectorAll('[data-policy]')].map(input=>[input.dataset.policy,input.value]));
+  return {...policy,valid_days:Number(policy.valid_days),packages};
+}
+
 function renderSettings() {
   const c=state.config;
-  return head('Business setup','Give the team a clear offer, audience, and source of truth.')+`<div class="settings-layout"><section class="panel"><form id="settings-form" class="settings-form" data-version="${c.version}"><label>Business name<input name="business_name" required maxlength="3000" value="${esc(c.business_name)}"></label><label>Offer<textarea name="offer" required maxlength="3000" rows="3">${esc(c.offer)}</textarea></label><label>Target customer segment<textarea name="segment" required maxlength="3000" rows="2" placeholder="Industry, geography, operational workflow, and buyer.">${esc(c.segment)}</textarea></label><label>Approved factual claims <span class="hint">· one per line</span><textarea name="approved_claims" required rows="4">${esc(c.approved_claims.join('\n'))}</textarea></label><label>Priority exclusions<textarea name="priority_exclusions" rows="2" maxlength="5000" placeholder="Which accounts should be excluded from the shortlist?">${esc(c.priority_exclusions)}</textarea></label><label>Qualification rubric<textarea name="qualification_rubric" rows="3" maxlength="5000" placeholder="What evidence makes an opportunity qualified?">${esc(c.qualification_rubric)}</textarea></label><div class="form-actions"><span class="hint">Version ${c.version} · Changes invalidate older task inputs.</span><button class="button" type="submit">Save configuration</button></div></form></section><div class="stack"><section class="panel side-note"><h3>Your operating setup</h3><div class="connection-row">CRM <span>Built-in account workspace</span></div><div class="connection-row">Model <span>${esc(state.runtime.model || 'Not configured')}</span></div><div class="connection-row">Provider <span>${state.demo?'Scripted demo':esc(state.runtime.provider)}</span></div><div class="connection-row">Outreach <span>Unavailable</span></div><div class="connection-row">Email review <span>Required</span></div><div class="connection-row">Data <span>Local SQLite</span></div></section><section class="panel side-note"><h3>Agent execution</h3><p>Default: <code>python3 -m gtm_agents serve --executor codex</code>. Queue work here, then ask Codex to run pending GTM tasks. Separate agent sessions save outputs into this workspace. Codex usage limits apply; there is no automatic background dispatcher.</p><p class="spaced">For the optional API worker, use <code>--executor api</code>.</p><p>In your terminal, set <code>OPENAI_API_KEY</code> and <code>GTM_MODEL</code>, then start without <code>--demo</code>. Or use <code>--env-file .env</code>. Run <code>python3 -m gtm_agents doctor --env-file .env --live</code> to verify access with one small paid request. Credentials stay on the server.</p><p class="spaced">Account reviews use up to 3 calls; strategy discussions use 4. Research uses up to 3 model requests and 3 web tool calls. Only the selected evidence packet and configured business context are sent to the model when you run a task.</p></section></div></div>`;
+  return head('Business setup','Give the team a clear offer, audience, and source of truth.')+`<div class="settings-layout"><section class="panel"><form id="settings-form" class="settings-form" data-version="${c.version}"><label>Business name<input name="business_name" required maxlength="3000" value="${esc(c.business_name)}"></label><label>Offer<textarea name="offer" required maxlength="3000" rows="3">${esc(c.offer)}</textarea></label><label>Target customer segment<textarea name="segment" required maxlength="3000" rows="2" placeholder="Industry, geography, operational workflow, and buyer.">${esc(c.segment)}</textarea></label><label>Approved factual claims <span class="hint">· one per line</span><textarea name="approved_claims" required rows="4">${esc(c.approved_claims.join('\n'))}</textarea></label><label>Priority exclusions<textarea name="priority_exclusions" rows="2" maxlength="5000" placeholder="Which accounts should be excluded from the shortlist?">${esc(c.priority_exclusions)}</textarea></label><label>Qualification rubric<textarea name="qualification_rubric" rows="3" maxlength="5000" placeholder="What evidence makes an opportunity qualified?">${esc(c.qualification_rubric)}</textarea></label>${policyEditor(c.deal_policy)}<div class="form-actions"><span class="hint">Version ${c.version} · Changes invalidate older task inputs.</span><button class="button" type="submit">Save configuration</button></div></form></section><div class="stack"><section class="panel side-note"><h3>Your operating setup</h3><div class="connection-row">CRM <span>Built-in account workspace</span></div><div class="connection-row">Model <span>${esc(state.runtime.model || 'Not configured')}</span></div><div class="connection-row">Provider <span>${state.demo?'Scripted demo':esc(state.runtime.provider)}</span></div><div class="connection-row">Outreach <span>Unavailable</span></div><div class="connection-row">Email review <span>Required</span></div><div class="connection-row">Data <span>Local SQLite</span></div></section><section class="panel side-note"><h3>Agent execution</h3><p>Default: <code>python3 -m gtm_agents serve --executor codex</code>. Queue work here, then ask Codex to run pending GTM tasks. Separate agent sessions save outputs into this workspace. Codex usage limits apply; there is no automatic background dispatcher.</p><p class="spaced">For the optional API worker, use <code>--executor api</code>.</p><p>In your terminal, set <code>OPENAI_API_KEY</code> and <code>GTM_MODEL</code>, then start without <code>--demo</code>. Or use <code>--env-file .env</code>. Run <code>python3 -m gtm_agents doctor --env-file .env --live</code> to verify access with one small paid request. Credentials stay on the server.</p><p class="spaced">Account reviews use up to 3 calls; strategy discussions use 4. Research uses up to 3 model requests and 3 web tool calls. Only the selected evidence packet and configured business context are sent to the model when you run a task.</p></section></div></div>`;
 }
 
 document.addEventListener('click',async event=>{
@@ -243,6 +305,26 @@ document.addEventListener('click',async event=>{
   if(button.dataset.close){document.getElementById(button.dataset.close).close();return;}
   if(button.dataset.action==='add-account'){document.getElementById('account-dialog').showModal();return;}
   if(button.dataset.action==='add-evidence'){document.getElementById('evidence-dialog').showModal();return;}
+  if(button.dataset.action==='add-package'){
+    document.getElementById('package-list').insertAdjacentHTML('beforeend', packageEditor());
+    document.getElementById('package-list').lastElementChild.querySelector('input').focus();
+    return;
+  }
+  if(button.dataset.action==='remove-package'){button.closest('[data-package]').remove();return;}
+  if(button.dataset.action==='deal'){
+    const form = document.getElementById('deal-form');
+    form.reset(); form.dataset.accountId=selected; form.dataset.requestKey=crypto.randomUUID();
+    form.dataset.policyVersion=state.config.version;
+    const briefs = state.discovery_briefs.filter(row => row.account_id===selected && row.reviewed_at && row.result?.recommendation==='advance');
+    form.elements.discovery_task_id.replaceChildren(new Option('Use buyer requirements only',''),
+      ...briefs.map(row=>new Option(date(row.created_at)+' · '+row.result.rationale,row.task_id)));
+    document.getElementById('credit-currency').textContent=state.config.deal_policy.currency;
+    document.getElementById('demo-deal-request').hidden=!state.demo;
+    document.getElementById('deal-dialog').showModal();return;
+  }
+  if(button.id==='demo-deal-request' && state.demo){
+    document.getElementById('deal-form').elements.buyer_requirements.value=state.demo_deal_requirements;return;
+  }
   if(button.dataset.action==='discovery'){
     const form=document.getElementById('discovery-form');
     form.reset();
@@ -273,6 +355,7 @@ document.addEventListener('click',async event=>{
   const action=button.dataset.action;if(!action)return;
   button.disabled=true;
   try {
+    if(action==='review-deal'){await api('deal-reviews',{task_id:button.dataset.id});toast('Deal review recorded.');}
     if(action==='review-discovery'){await api('discovery-reviews',{task_id:button.dataset.id});toast('Discovery brief marked reviewed.');}
     if(action==='review-reply'){await api('reply-reviews',{task_id:button.dataset.id});toast('Reply marked reviewed.');}
     if(action==='priority'){await api('tasks',{kind:'account_priority',account_id:selected,request_key:crypto.randomUUID()});toast('Priority assessment queued.');}
@@ -290,10 +373,15 @@ document.addEventListener('click',async event=>{
 });
 
 document.addEventListener('submit',async event=>{
-  const form=event.target;if(!['discovery-form','reply-form','account-form','evidence-form','strategy-form','settings-form','research-form'].includes(form.id))return;
+  const form=event.target;if(!['deal-form','discovery-form','reply-form','account-form','evidence-form','strategy-form','settings-form','research-form'].includes(form.id))return;
   event.preventDefault();const button=form.querySelector('button[type="submit"]');button.disabled=true;
   const data=Object.fromEntries(new FormData(form));
   try {
+    if(form.id==='deal-form'){
+      const request={...data,policy_version:Number(form.dataset.policyVersion),payment_days:data.payment_days===''?null:Number(data.payment_days)};
+      await api('tasks',{kind:'deal_desk',account_id:form.dataset.accountId,deal_request:request,request_key:form.dataset.requestKey});
+      document.getElementById('deal-dialog').close();toast('Deal review queued.');
+    }
     if(form.id==='discovery-form'){
       await api('tasks',{kind:'discovery_qualification',account_id:form.dataset.accountId,conversation_notes:data.conversation_notes,request_key:form.dataset.requestKey});
       document.getElementById('discovery-dialog').close();
@@ -308,7 +396,7 @@ document.addEventListener('submit',async event=>{
     if(form.id==='evidence-form'){await api('evidence',{...data,account_id:selected});document.getElementById('evidence-dialog').close();form.reset();toast('Evidence saved. Older drafts may need a new review.');}
     if(form.id==='research-form'){await api('tasks',{kind:'account_research',account_id:selected,question:data.question,request_key:crypto.randomUUID()});toast('Public research queued.');}
     if(form.id==='strategy-form'){await api('tasks',{kind:'strategy',question:data.question,request_key:crypto.randomUUID()});form.reset();toast('Strategy discussion queued.');}
-    if(form.id==='settings-form'){await api('config',{...data,approved_claims:data.approved_claims.split('\n').map(s=>s.trim()).filter(Boolean),version:Number(form.dataset.version)});toast('Business configuration saved.');}
+    if(form.id==='settings-form'){await api('config',{...data,deal_policy:readPolicy(form),approved_claims:data.approved_claims.split('\n').map(s=>s.trim()).filter(Boolean),version:Number(form.dataset.version)});toast('Business configuration saved.');}
     await refresh(true);
   }catch(error){toast(error.message,true);}finally{button.disabled=false;}
 });

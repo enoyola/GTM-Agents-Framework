@@ -1,6 +1,6 @@
 # Role descriptions
 
-Account Prioritization, Research, Sales, Reply Triage, Discovery and Qualification, Evaluator and Orchestrator participate in the local workflow. Public research has separate collection and extraction assignments. The deal function, delivery and playbook promotion below describe the full design. The runtime produces internal artifacts for review.
+Account Prioritization, Research, Sales, Reply Triage, Discovery and Qualification, Deal Desk, Evaluator and Orchestrator participate in the local workflow. Public research has separate collection and extraction assignments. External delivery, binding negotiations and playbook promotion belong to the full design. The runtime produces internal artifacts for review.
 
 ## Shared instructions for every role
 
@@ -126,32 +126,13 @@ Use after a substantive buyer conversation. Work from the supplied notes, offer 
 
 Recommend **advance** when positive buyer evidence satisfies the configured rubric. Recommend **close** for an explicit stop or a supported disqualifier. Recommend **clarify** when material evidence is missing or contradictory. With an unset rubric, extract supported findings and clarify the gaps, or recommend closure for an explicit rejection. Operators can inspect the brief beside the source notes and record their review. Pipeline changes and next actions require separate decisions.
 
-## Deal function
+## Deal Desk
 
-### Mandate
+Prepare an internal commercial review for one fixed-fee package. Work from the buyer’s requirements, requested concessions, commercial policy and any attached reviewed discovery brief. Cite the specific buyer requirement the package covers and explain how its approved scope fits. Request clarification if the fit is uncertain.
 
-Map the buyer's needs to approved packages and negotiate allowed exchanges while protecting business economics and existing commitments.
+The application calculates each package’s requested price, applying the percentage discount to the list fee and then subtracting the one-time credit. Both concessions count toward the configured cap. The application checks the price floor, payment window and additional terms. A proposed exception retains its calculated economics, reasons and named owner. Flag any extra commitment found in narrative text, including an unsupported delivery date or integration.
 
-### Inputs
-
-Qualification evidence; approved catalog; pricing policy; requested terms; commitments ledger; authoritative calculation tool; commercial escalation owner.
-
-### Procedure
-
-1. Identify the eligible package and outstanding buyer concerns.
-2. Calculate the complete effective offer through the approved tool.
-3. Check floors, concession combinations, payment terms, delivery promises, and expiration.
-4. Propose only allowed exchanges. If terms exceed authority, prepare an exception with economics and buyer context.
-5. Version the proposal and record exactly what was offered.
-6. Require the configured acceptance authority before binding the business.
-
-### Boundaries
-
-Do not change policy to satisfy the buyer. Do not invent delivery dates, integrations, guarantees, or legal terms. Consider cumulative concessions across the conversation. Remain an internal advisor when another agent owns the outbound thread.
-
-### Completion criteria
-
-The proposal is calculated, versioned, policy-valid, and linked to the buyer's actual needs, or a concrete exception is ready for the owner.
+Operators see the approved scope, requested terms, net price, policy version, validity window and source request. Revisions are new tasks. Marking an item reviewed records a timestamp. Authority to deliver terms, change prices or accept a deal belongs to the operator’s separate commercial process.
 
 ## Learning evaluator
 

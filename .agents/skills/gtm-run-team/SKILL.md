@@ -1,6 +1,6 @@
 ---
 name: gtm-run-team
-description: Coordinate queued prioritization, public research, account reviews, reply triage, discovery qualification and strategy discussions through the local GTM Codex bridge.
+description: Coordinate queued prioritization, public research, account reviews, reply triage, discovery qualification, deal reviews and strategy discussions through the local GTM Codex bridge.
 ---
 
 # Run the GTM team
@@ -12,6 +12,8 @@ Resolve the intended database before claiming a task. A registered MCP server is
 3. Submit the exact result using the returned agent identity. Research and Sales strategy proposals are independent. Give the Evaluator both proposals, then give the Orchestrator the proposals and critique.
 4. Renew the lease during work. On interruption inspect saved runs. Mark expired work failed and use a fresh task when a retry is justified.
 5. Report the stored result, open questions and next owner decision. A reviewed draft is an internal artifact. Candidate findings need an operator decision.
+
+For `deal_desk`, dispatch the role of the same name. Use the frozen catalog calculations and retain exceptions for commercial review.
 
 For `reply_triage` or `discovery_qualification`, dispatch the single role of the same name. Pass the frozen role packet and import the result for operator review.
 

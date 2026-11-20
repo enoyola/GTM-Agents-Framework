@@ -13,6 +13,7 @@ For example, the demo includes a fictional packaging company where artwork revis
 | **Sales** | Uses the brief and the approved offer to draft a message for a specific recipient. If a credible message needs more evidence, it explains what is missing. In a strategy discussion, it contributes the seller’s perspective. |
 | **Reply Triage** | Reads a buyer reply you paste into Pipeline, identifies the request, quotes the words behind its interpretation and suggests an internal next action for you to review. |
 | **Discovery and Qualification** | Turns conversation notes into a Sales brief. It cites buyer-confirmed needs, constraints and decision participants, lists open questions, and recommends advancing, clarifying or closing against your qualification rubric. |
+| **Deal Desk** | Matches buyer requirements to an approved fixed-fee package and prepares an internal proposal, exception request or clarification. The runtime calculates the net price and checks commercial limits. |
 | **Evaluator** | Reviews another agent’s work. It checks research claims against citations, reads a draft from the recipient’s perspective, and challenges assumptions in strategy proposals. |
 | **Orchestrator** | Closes a strategy discussion. After reading both proposals and the critique, it records whether to keep the current approach, gather more evidence or propose a test. |
 
@@ -40,6 +41,8 @@ To try **Reply Triage**, select an account in **Pipeline**, choose **Triage a re
 
 To try **Discovery and Qualification**, open an account in **Pipeline**, select **Qualify a conversation → Use demo notes → Create discovery brief**. The example buyer needs artwork approvals tracked, identifies the process owner and requests an outline. Compare the **advance** recommendation with the excerpts and the remaining question about approval authority. To try **close**, paste `Buyer: We have ended this project. Please close the opportunity.` Other free-form notes use the scripted **clarify** fallback in the demo. Codex and the API worker interpret free-form notes using the **Qualification rubric** in **Business setup**.
 
+To try **Deal Desk** in a new demo, select **Pipeline → an account → Prepare a deal proposal → Use demo request**. Enter a 5% discount and queue the review. The fictional USD 1,000 pilot yields a USD 950 proposal. Run the same request with a 10% discount and a USD 100 credit: the USD 800 net price falls below the USD 850 floor and exceeds the 10% combined concession limit. The card identifies the commercial exception owner. **Mark reviewed** records the operator’s review only.
+
 Press `Ctrl+C` in the terminal to stop. Run the same command again to reopen your demo with its saved work.
 
 ## How the agents work together
@@ -51,6 +54,7 @@ Press `Ctrl+C` in the terminal to stop. Run the same command again to reopen you
 | Account review | Research → Sales → Evaluator | A message for human review when Sales and the Evaluator both recommend it, or an explanation of why it was held. |
 | Reply triage | Operator supplies reply → Reply Triage interprets it → operator reviews the recommendation | The original message, supporting quote, intent and proposed handoff. Marking it reviewed records your review. You decide separately whether to act. |
 | Discovery and qualification | Operator supplies notes → agent applies the qualification rubric → Sales reviews the brief | Findings linked to notes, unresolved questions and an advance, clarify or close recommendation. Marking it reviewed records the review. |
+| Deal review | Buyer requirements and optional reviewed discovery → Deal Desk matches scope → application checks terms → operator reviews | A versioned internal proposal, a commercial exception with reasons, or a question to resolve before quoting. |
 | Strategy discussion | Research and Sales propose independently → Evaluator critiques both → Orchestrator decides | The two proposals, critique and decision. A proposed test can become an experiment brief. |
 
 ## Use your own workspace
@@ -60,6 +64,8 @@ Stop the demo, then run `python3 -m gtm_agents serve` from the repository direct
 For prioritization, fill in **Target customer segment** and any **Priority exclusions** in **Business setup**. Run **Assess priority** on the accounts you want to compare. Each assessment is one agent task. Changes to evidence or business settings make the affected assessments outdated. Once you have saved an assessment, new strategy discussions draw on up to 20 currently shortlisted accounts. Before the first assessment, strategy uses the existing recent-account selection.
 
 The account stage shows **Drafted** when Sales and the Evaluator recommend a draft for human review. A held review shows **Needs research** when either role requests more evidence, or **Needs revision** otherwise.
+
+For Deal Desk, open **Business setup → Deal Desk catalog and pricing policy**. Set a currency, validity period and exception owner. Add each package’s approved scope, fixed fee, floor, combined discount limit and standard payment period. Save configuration before queuing work. Each request covers one package in one currency; use the additional terms field for delivery promises, other concessions or existing commitments requiring review. You may attach a current, reviewed discovery brief for the same account that recommends advancing. The real workspace starts with an empty catalog. Existing demo workspaces can configure the same [fictional example policy](docs/deal-policy.example.json).
 
 The default workflow uses your Codex session. After queuing the review, open this repository in Codex and ask it to **“Run the pending GTM tasks using separate agents.”** Return to the dashboard to inspect the results. For CLI handoffs, optional MCP registration and recovery, see the [execution guide](docs/codex-execution.md).
 

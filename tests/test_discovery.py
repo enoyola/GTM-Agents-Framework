@@ -122,7 +122,7 @@ class DiscoveryCase(unittest.TestCase):
     def test_v5_migration_keeps_existing_reply_review(self):
         path = self.root / 'v5.db'
         with closing(sqlite3.connect(path)) as db, db:
-            db.executescript(SCHEMA.replace("'reply_triage','discovery_qualification'", "'reply_triage'"))
+            db.executescript(SCHEMA.replace("'reply_triage','discovery_qualification','deal_desk'", "'reply_triage'"))
             db.execute('DROP TABLE discovery_reviews')
             db.execute("INSERT INTO tasks VALUES ('old',NULL,'reply_triage','completed','old','{}','{}',NULL,NULL,1,NULL,1,1)")
             db.execute("INSERT INTO reply_reviews VALUES ('old',2)")
@@ -130,5 +130,5 @@ class DiscoveryCase(unittest.TestCase):
         store = Store(path)
         with store.connect() as db:
             self.assertFalse(db.execute('PRAGMA foreign_key_check').fetchall())
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],6)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],7)
         self.assertEqual(store.snapshot()['reply_triages'][0]['reviewed_at'],2)

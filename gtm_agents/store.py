@@ -7,10 +7,8 @@ import time
 import uuid
 
 
-class DomainError(Exception):
-    def __init__(self, message, status=400):
-        super().__init__(message)
-        self.status = status
+from .validation import DomainError, required
+from .deal_desk import prepare_deal, validate_policy, validate_request
 
 
 def uid(prefix):
@@ -21,16 +19,10 @@ def encode(value):
     return json.dumps(value, separators=(",", ":"), ensure_ascii=False)
 
 
-def required(value, label, maximum=5000):
-    if not isinstance(value, str) or not value.strip() or len(value) > maximum:
-        raise DomainError(f"{label} is required and must be at most {maximum} characters.")
-    return value.strip()
-
-
 DEFAULT_CONFIG = {
     "business_name": "", "offer": "",
     "segment": "", "approved_claims": [],
-    "qualification_rubric": "", "priority_exclusions": "", "paused": False,
+    "qualification_rubric": "", "priority_exclusions": "", "deal_policy": None, "paused": False,
 }
 
 SCHEMA = """
@@ -52,7 +44,7 @@ CREATE TABLE IF NOT EXISTS evidence (
 );
 CREATE TABLE IF NOT EXISTS tasks (
  id TEXT PRIMARY KEY, account_id TEXT REFERENCES accounts(id),
- kind TEXT NOT NULL CHECK(kind IN ('account_review','strategy','account_research','account_priority','reply_triage','discovery_qualification')),
+ kind TEXT NOT NULL CHECK(kind IN ('account_review','strategy','account_research','account_priority','reply_triage','discovery_qualification','deal_desk')),
  status TEXT NOT NULL CHECK(status IN ('queued','running','completed','failed','canceled')),
  request_key TEXT NOT NULL UNIQUE, input TEXT NOT NULL, output TEXT,
  lease_token TEXT, lease_until REAL, attempts INTEGER NOT NULL DEFAULT 0,
@@ -74,6 +66,9 @@ CREATE TABLE IF NOT EXISTS drafts (
  evidence_ids TEXT NOT NULL, account_version INTEGER NOT NULL,
  config_version INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'needs_review',
  created_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS deal_reviews (
+ task_id TEXT PRIMARY KEY REFERENCES tasks(id), reviewed_at REAL NOT NULL
 );
 CREATE TABLE IF NOT EXISTS discovery_reviews (
  task_id TEXT PRIMARY KEY REFERENCES tasks(id), reviewed_at REAL NOT NULL
@@ -130,7 +125,7 @@ class Store:
             db.execute('PRAGMA foreign_keys=OFF')
             db.execute('BEGIN IMMEDIATE')
             version = db.execute('PRAGMA user_version').fetchone()[0]
-            if version > 6:
+            if version > 7:
                 raise DomainError('This database was created by a newer runtime. Use a compatible application version.')
             if db.execute("SELECT name FROM sqlite_master WHERE name='metadata'").fetchone():
                 existing=db.execute("SELECT value FROM metadata WHERE key='mode'").fetchone()
@@ -138,7 +133,7 @@ class Store:
                     raise DomainError('This database belongs to a different workspace mode. Use a separate demo database.')
             # Rebuild only the task CHECK constraint; keep all IDs and referencing rows.
             old=db.execute("SELECT sql FROM sqlite_master WHERE name='tasks'").fetchone()
-            if old and 'discovery_qualification' not in old['sql']:
+            if old and 'deal_desk' not in old['sql']:
                 create=SCHEMA.split('CREATE TABLE IF NOT EXISTS tasks (')[1].split(');')[0]
                 db.execute('CREATE TABLE tasks_v2 ('+create+');')
                 db.execute('INSERT INTO tasks_v2 SELECT * FROM tasks')
@@ -170,8 +165,8 @@ class Store:
                     FROM latest AS l WHERE l.account_id=a.id AND l.seq=1 AND l.status='blocked'
                         AND a.suppressed=0 AND a.stage='drafted'
                 """)
-            if version < 6:
-                db.execute("PRAGMA user_version=6")
+            if version < 7:
+                db.execute("PRAGMA user_version=7")
 
     @contextmanager
     def connect(self):
@@ -221,7 +216,8 @@ class Store:
             exclusions = data.get('priority_exclusions', old['priority_exclusions'])
             if not isinstance(exclusions, str) or len(exclusions) > 5000:
                 raise DomainError('Priority exclusions must be text, at most 5000 characters.')
-            new = {**fields, 'priority_exclusions': exclusions.strip(), 'approved_claims': claims, 'qualification_rubric': rubric,
+            policy = validate_policy(data.get('deal_policy', old['deal_policy']))
+            new = {**fields, 'deal_policy': policy, 'priority_exclusions': exclusions.strip(), 'approved_claims': claims, 'qualification_rubric': rubric,
                    'paused': old['paused']}
             db.execute("UPDATE settings SET version=version+1,value=? WHERE id=1", (encode(new),))
             self.event(db, 'config.updated', {'version': old['version'] + 1})
@@ -299,10 +295,15 @@ class Store:
         if executor not in ("api","codex"):raise DomainError("Unknown executor.")
         if executor=="codex" and self.demo:raise DomainError("Use the real workspace for Codex executions.")
         kind = data.get('kind', 'account_review')
-        if kind not in ('account_review', 'strategy', 'account_research', 'account_priority', 'reply_triage', 'discovery_qualification'):
+        if kind not in ('account_review', 'strategy', 'account_research', 'account_priority', 'reply_triage', 'discovery_qualification', 'deal_desk'):
             raise DomainError('Unknown task kind.')
         if kind=='account_research' and self.demo:
             raise DomainError('Web research is available only in the real workspace.',409)
+        deal = None
+        if kind == 'deal_desk':
+            deal = validate_request(data.get('deal_request'))
+        elif data.get('deal_request') is not None:
+            raise DomainError('Only Deal Desk accepts a commercial request.')
         reply_text = ''
         if kind == 'reply_triage':
             reply_text = required(data.get('reply_text'), 'Inbound reply', 5000)
@@ -323,6 +324,8 @@ class Store:
             existing = db.execute("SELECT * FROM tasks WHERE request_key=?", (request_key,)).fetchone()
             if existing:
                 same = existing['kind'] == kind and existing['account_id'] == data.get('account_id') and json.loads(existing['input']).get('executor','api')==executor
+                if deal is not None:
+                    same = same and json.loads(existing['input']).get('deal', {}).get('request') == deal
                 if kind == 'discovery_qualification':
                     same = same and json.loads(existing['input']).get('conversation_notes') == notes
                 if kind == 'reply_triage':
@@ -337,8 +340,9 @@ class Store:
             if config['paused']:
                 raise DomainError('The team is paused. Resume before queuing work.', 409)
             fields=('business_name','offer','approved_claims') if kind=='account_research' else ('business_name','offer','segment','approved_claims')
-            if kind not in ('reply_triage','discovery_qualification') and not all(config.get(k) for k in fields):
+            if kind not in ('reply_triage','discovery_qualification','deal_desk') and not all(config.get(k) for k in fields):
                 raise DomainError('Set the business, offer, segment and approved claims before running agents.', 409)
+            policy = config.pop('deal_policy', None)
             shortlist = []
             account_id = data.get('account_id') if kind != 'strategy' else None
             if kind != 'strategy':
@@ -360,10 +364,25 @@ class Store:
                     raise DomainError('Add at least one account with evidence first.', 409)
             evidence = []
             context = {'executor':executor, 'config': config, 'accounts': accounts, 'evidence': evidence, 'question': question}
-            if kind in ('reply_triage', 'discovery_qualification'):
+            if kind in ('reply_triage', 'discovery_qualification', 'deal_desk'):
                 context['config'] = {'version': config['version']}
                 context['accounts'] = [{k: account[k] for k in ('id','version','is_demo')}]
-                if kind == 'reply_triage':
+                if deal is not None:
+                    discovery = None
+                    if deal['discovery_task_id']:
+                        row = db.execute("""SELECT t.input,t.output FROM tasks t JOIN discovery_reviews r ON r.task_id=t.id
+                                            WHERE t.id=? AND t.account_id=? AND t.kind='discovery_qualification'
+                                              AND t.status='completed'""", (deal['discovery_task_id'], account_id)).fetchone()
+                        if not row:
+                            raise DomainError('Select a reviewed discovery brief for this account.', 409)
+                        discovery = json.loads(row['output'])['discovery_qualification']
+                        prior = json.loads(row['input'])
+                        current = (prior['accounts'][0]['version'] == account['version'] and
+                                   all(prior['config'][k] == config[k] for k in ('offer','qualification_rubric')))
+                        if not current or discovery['recommendation'] != 'advance':
+                            raise DomainError('The discovery brief must be current and recommend advancement.', 409)
+                    context['deal'] = prepare_deal(policy, deal, discovery, config['version'])
+                elif kind == 'reply_triage':
                     context['reply_text'] = reply_text
                 else:
                     context['config'].update(offer=config['offer'], qualification_rubric=config['qualification_rubric'])
@@ -617,6 +636,9 @@ class Store:
     def review_reply(self, task_id):
         return self._mark_reviewed(task_id, 'reply_triage', 'reply_reviews', 'reply.reviewed')
 
+    def review_deal(self, task_id):
+        return self._mark_reviewed(task_id, 'deal_desk', 'deal_reviews', 'deal.reviewed')
+
     def review_discovery(self, task_id):
         return self._mark_reviewed(task_id, 'discovery_qualification', 'discovery_reviews', 'discovery.reviewed')
 
@@ -656,6 +678,21 @@ class Store:
             """)
             result['discovery_briefs'] = [{**dict(row), 'result': json.loads(row['result']) if row['result'] else None}
                                           for row in briefs]
+            deals = db.execute("""
+                SELECT t.id AS task_id, t.account_id, t.status, t.error, t.created_at, r.reviewed_at,
+                       json_extract(t.input,'$.deal') AS deal, json_extract(t.output,'$.deal_desk') AS result
+                FROM tasks t LEFT JOIN deal_reviews r ON r.task_id=t.id
+                WHERE t.kind='deal_desk' ORDER BY t.created_at DESC, t.rowid DESC LIMIT 300
+            """)
+            result['deal_proposals'] = []
+            for row in deals:
+                item = dict(row)
+                deal = json.loads(item.pop('deal'))
+                packages = deal.pop('packages')
+                review = json.loads(item['result']) if item['result'] else None
+                selected = next((p for p in packages if review and p['id'] == review['package_id']), None)
+                result['deal_proposals'].append({**item, **deal, 'result': review, 'package': selected,
+                    'expires_at': item['created_at'] + deal['valid_days'] * 86400})
             for table in ('accounts','evidence','tasks','agent_runs','drafts','discussions','experiments','events','research_findings'):
                 order = 'id' if table=='events' else 'created_at'
                 rows = [dict(r) for r in db.execute(f'SELECT * FROM {table} ORDER BY {order} DESC LIMIT 300')]

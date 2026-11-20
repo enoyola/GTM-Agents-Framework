@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from .deal_desk import DEMO_REQUIREMENTS
 from .discovery import DEMO_NOTES
 from .store import DomainError
 
@@ -52,6 +53,7 @@ class Handler(BaseHTTPRequestHandler):
         if path=='/api/state':
             data=self.server.store.snapshot()
             if data['demo']:
+                data['demo_deal_requirements'] = DEMO_REQUIREMENTS
                 data['demo_discovery_notes'] = DEMO_NOTES
             provider=self.server.provider
             data['runtime']={'provider':provider.name,'model':provider.model,
@@ -92,6 +94,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not getattr(self.server.provider,'ready',True):
                     raise DomainError('Model is not configured. Set GTM_MODEL and OPENAI_API_KEY before running agents.',409)
                 result=store.enqueue(data,executor=getattr(self.server.provider,'execution_mode','api'))
+            elif path=='/api/deal-reviews':result=store.review_deal(data.get('task_id'))
             elif path=='/api/discovery-reviews':result=store.review_discovery(data.get('task_id'))
             elif path=='/api/reply-reviews':result=store.review_reply(data.get('task_id'))
             elif path=='/api/research-findings':result=store.review_finding(data.get('finding_id'),data.get('decision'))

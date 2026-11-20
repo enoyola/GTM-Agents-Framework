@@ -3,6 +3,7 @@ import json
 import sqlite3
 import time
 
+from .deal_desk import DEAL_PROMPT, DEAL_SCHEMA, validate_deal
 from .discovery import DISCOVERY_PROMPT, DISCOVERY_SCHEMA, discovery_context, validate_discovery
 from .triage import TRIAGE_PROMPT, TRIAGE_SCHEMA, triage_context, validate_triage
 from .priority import PRIORITY_PROMPT, PRIORITY_SCHEMA, priority_context, validate_priority
@@ -20,6 +21,7 @@ class CodexProvider:
 
 
 def workflow(kind):
+    if kind=='deal_desk':return ['deal_desk']
     if kind=='discovery_qualification':return ['discovery_qualification']
     if kind=='reply_triage':return ['reply_triage']
     if kind=='account_priority':return ['prioritizer']
@@ -120,7 +122,11 @@ class CodexBridge:
             if existing:return json.loads(existing['packet'])
             context={**task['input'],'kind':task['kind']}
             previous={r:runs[r] for r in needed}
-            if role=='discovery_qualification':
+            if role=='deal_desk':
+                context=context['deal']
+                instructions=DEAL_PROMPT
+                schema=DEAL_SCHEMA
+            elif role=='discovery_qualification':
                 context=discovery_context(context)
                 instructions=DISCOVERY_PROMPT
                 schema=DISCOVERY_SCHEMA
@@ -169,7 +175,8 @@ class CodexBridge:
                 raise DomainError('Assignment already has a different result or agent identity.',409)
             task=self._task(db,row['task_id'])
             packet=json.loads(row['packet']);role=row['role'];context=packet['context']
-            if role=='discovery_qualification':validated=validate_discovery(result,context)
+            if role=='deal_desk':validated=validate_deal(result,context)
+            elif role=='discovery_qualification':validated=validate_discovery(result,context)
             elif role=='reply_triage':validated=validate_triage(result,context)
             elif role=='prioritizer':validated=validate_priority(result,context)
             elif role=='research_search':validated=validate_report(result)
