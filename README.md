@@ -1,28 +1,40 @@
 # GTM Agents Framework
 
-A local team of agents for evidence-based account research, message drafting and sales strategy. Start here to try the workflow on fictional accounts or adapt it to a business in a separate private workspace.
+GTM Agents helps a go-to-market team decide who to approach, what it can credibly say, and which sales idea to test next. You give the agents an offer, an audience and evidence about a company. They return work you can inspect in a local dashboard, from a cited research finding to a draft message or an experiment proposal. All outreach stays in draft form.
 
-## Try the team
+For example, the demo includes a fictional packaging company where artwork revisions need approval before production. That observation gives Sales a handoff to ask about. The Evaluator can then flag any claim about delays or costs that the observation alone cannot support.
 
-Use Python 3.11 or newer. From this repository, run the scripted demo with the standard library.
+## Try the demo
+
+You need Git and Python 3.11 or newer. The demo runs on your computer with Python’s standard library, three fictional accounts and scripted agent responses. You can try it without an API key or a Codex account.
 
 ```sh
+git clone https://github.com/enoyola/GTM-Agents-Framework.git
+cd GTM-Agents-Framework
 python3 -m gtm_agents serve --demo
 ```
 
-Open [the local dashboard](http://127.0.0.1:8765). Inspect an account review to see what Research supplied, what Sales drafted and how the Evaluator judged it. Open the strategy discussion to compare the two proposals and read the Orchestrator’s decision. The demo uses fictional records and makes no model calls.
+Leave the terminal running and open the [local dashboard](http://127.0.0.1:8765). On the first launch, the demo automatically runs an account review and a strategy discussion.
 
-For an empty workspace, stop the demo and run `python3 -m gtm_agents serve`. In **Business setup**, enter a business name, offer, audience and approved claims. Add an account with a sourced observation or an explicitly labeled hypothesis. Queue a review, then ask Codex to run the pending task. The default executor uses the current Codex session. The [execution guide](docs/codex-execution.md) covers CLI handoffs, optional MCP registration and recovery.
+1. In **Pipeline**, select the account marked **Drafted**. Read **Account evidence**, then scroll to **Latest outreach draft** and **Evaluator notes**. Compare the original observation with what the draft actually claims.
+2. In **Strategy room**, find the discussion “How should we explain a focused workflow pilot?” Read the Research and Sales proposals, the Evaluator’s challenge and the **Orchestrator decision**. Notice which part of the message the team proposes changing and what it would hold constant.
+3. Select **Create experiment brief**, then open **Learning**. You’ll see the hypothesis, the proposed metric and the details a person would still need to define before running the test.
 
-## How work moves
+Press `Ctrl+C` in the terminal to stop. Run the same command again to reopen your demo with its saved work.
 
-| Workflow | Handoff | What the operator receives |
+## How the agents work together
+
+| When you want to… | Who does what | What you review |
 | --- | --- | --- |
-| Public research | Collector → Extractor → Evaluator | Cited report and candidate findings to accept or reject |
-| Account review | Research → Sales → Evaluator | Proposed copy for review when both Sales and Evaluator recommend a draft, otherwise a blocked artifact |
-| Strategy | Independent Research and Sales proposals → Evaluator → Orchestrator | Decision with dissent, uncertainties and a possible experiment |
+| Research a company | A **Collector** gathers public sources. An **Extractor** turns the cited report into individual findings. The **Evaluator** checks whether the report supports each claim. | A cited report and candidate findings. You decide which findings to accept as account evidence. |
+| Prepare a first message | **Research** briefs **Sales** on the account evidence and open questions. Sales proposes a message. The **Evaluator** reads that exact draft from the recipient’s perspective and checks its claims. | A draft for human review if Sales and the Evaluator both recommend it, or a record of why the draft was held. |
+| Decide what to test | **Research** and **Sales** propose approaches independently. The **Evaluator** challenges both. The **Orchestrator** weighs the proposals and critique and records a decision. | Both proposals, the critique and the decision. If the decision calls for a test, you can save an experiment brief. |
 
-The runtime supports internal research, drafting and planning. External delivery, deal execution and live experiment enrollment fall outside its capabilities.
+## Use your own workspace
+
+Stop the demo, then run `python3 -m gtm_agents serve` from the repository directory to open a separate workspace. In **Business setup**, enter your offer, target audience and approved claims under your business name. In **Pipeline**, add a company and a sourced observation, then select **Run account review**.
+
+The default workflow uses your Codex session. After queuing the review, open this repository in Codex and ask it to **“Run the pending GTM tasks using separate agents.”** Return to the dashboard to inspect the results. For CLI handoffs, optional MCP registration and recovery, see the [execution guide](docs/codex-execution.md).
 
 ## Reuse the framework
 
