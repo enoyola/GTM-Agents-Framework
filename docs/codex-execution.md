@@ -14,6 +14,7 @@ Codex is now the default executor. Create/queue research, account reviews or a s
 
 | Workflow | Separate agent executions |
 |---|---|
+| Discovery and qualification | One discovery and qualification agent per conversation assessment |
 | Reply triage | One Reply Triage agent per supplied inbound message |
 | Account prioritization | One prioritizer per assessed account |
 | Public research | Collector → Extractor → Evaluator |
@@ -62,6 +63,8 @@ python3 -m gtm_agents codex heartbeat --task-id TASK_ID
 python3 -m gtm_agents codex fail --task-id TASK_ID --reason "Agent execution interrupted"
 ```
 
+For a discovery brief, queue `{"kind":"discovery_qualification","account_id":"ACCOUNT_ID","conversation_notes":"Buyer: We need a single approval queue.","request_key":"UNIQUE_ASSESSMENT_KEY"}`. Claim the task and request its `discovery_qualification` role. The packet contains only the submitted notes, offer and qualification rubric. Submit the exact result through the bridge. The latest briefs appear under `discovery_briefs` in workspace state and on the account in Pipeline.
+
 For a reply, queue `{"kind":"reply_triage","account_id":"ACCOUNT_ID","reply_text":"How much does the pilot cost?","request_key":"UNIQUE_MESSAGE_KEY"}`. Use the same key to retry that message. Claim the task, obtain the `reply_triage` packet and submit its exact result. The operator can inspect the original and mark the recommendation reviewed in Pipeline. Workspace state exposes recent replies under `reply_triages`.
 
 For a priority assessment, queue `{"kind":"account_priority","account_id":"ACCOUNT_ID","request_key":"UNIQUE_KEY"}`. Request the `prioritizer` packet and submit its result through the usual bridge. Each assessment uses saved evidence and the configured targeting rules. The workspace state includes the latest assessments under `priorities`. A fresh task key requests a new assessment.
@@ -91,7 +94,7 @@ Extraction and evaluation use the saved report. Findings remain pending (or bloc
 
 ## Persistence and recovery
 
-Schema version 5 adds reply triage and review timestamps. Schema version 4 added account priorities and repairs legacy account stages for held reviews. Earlier versions introduced immutable `codex_assignments` alongside existing `agent_runs`, research candidates, discussions and events. Task inputs carry `executor: codex`; legacy/API tasks default to `api`. Default dashboard startup does not start the API worker. A running API worker filters its queue and cannot execute a Codex task.
+Schema version 6 adds discovery briefs and their review timestamps. Schema version 5 introduced reply triage and review timestamps. Schema version 4 added account priorities and repairs legacy account stages for held reviews. Earlier versions introduced immutable `codex_assignments` alongside existing `agent_runs`, research candidates, discussions and events. Task inputs carry `executor: codex`; legacy/API tasks default to `api`. Default dashboard startup does not start the API worker. A running API worker filters its queue and cannot execute a Codex task.
 
 All completed outputs remain in SQLite even when the Codex turn ends. Raw role packet/result files in `work/` are temporary handoff artifacts. Restart the dashboard to view saved work; no API key is needed. Back up SQLite before upgrading a valuable workspace.
 

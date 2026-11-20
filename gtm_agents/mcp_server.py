@@ -18,9 +18,9 @@ def create_server(path):
         return store.snapshot()
 
     @server.tool(annotations=write)
-    def gtm_queue_task(kind:Literal['account_research','account_review','strategy','account_priority','reply_triage'],request_key:str,account_id:str|None=None,question:str='',research_task_ids:list[str]|None=None,reply_text:str='') -> dict:
+    def gtm_queue_task(kind:Literal['account_research','account_review','strategy','account_priority','reply_triage','discovery_qualification'],request_key:str,account_id:str|None=None,question:str='',research_task_ids:list[str]|None=None,reply_text:str='',conversation_notes:str='') -> dict:
         """Queue authorized GTM work for Codex. Does not call a model, browse or send outreach. Reuse request_key only for identical work."""
-        return bridge.queue({'kind':kind,'request_key':request_key,'account_id':account_id,'question':question,'research_task_ids':research_task_ids or [],'reply_text':reply_text})
+        return bridge.queue({'kind':kind,'request_key':request_key,'account_id':account_id,'question':question,'research_task_ids':research_task_ids or [],'reply_text':reply_text,'conversation_notes':conversation_notes})
 
     @server.tool(annotations=write)
     def gtm_start_task(task_id:str) -> dict:

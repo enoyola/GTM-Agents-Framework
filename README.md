@@ -12,6 +12,7 @@ For example, the demo includes a fictional packaging company where artwork revis
 | **Research** | Writes an account brief from the evidence on file. It explains why the offer might fit and lists what Sales still needs to learn. In a strategy discussion, it proposes an approach independently of Sales. |
 | **Sales** | Uses the brief and the approved offer to draft a message for a specific recipient. If a credible message needs more evidence, it explains what is missing. In a strategy discussion, it contributes the seller’s perspective. |
 | **Reply Triage** | Reads a buyer reply you paste into Pipeline, identifies the request, quotes the words behind its interpretation and suggests an internal next action for you to review. |
+| **Discovery and Qualification** | Turns conversation notes into a Sales brief. It cites buyer-confirmed needs, constraints and decision participants, lists open questions, and recommends advancing, clarifying or closing against your qualification rubric. |
 | **Evaluator** | Reviews another agent’s work. It checks research claims against citations, reads a draft from the recipient’s perspective, and challenges assumptions in strategy proposals. |
 | **Orchestrator** | Closes a strategy discussion. After reading both proposals and the critique, it records whether to keep the current approach, gather more evidence or propose a test. |
 
@@ -37,6 +38,8 @@ To try prioritization, choose **Assess priority** on each fictional account in *
 
 To try **Reply Triage**, select an account in **Pipeline**, choose **Triage a reply**, paste `How much does the pilot cost?` and select **Queue triage**. Compare the quoted words with the suggested pricing handoff to Sales, then select **Mark reviewed**. Try `Please ask our operations team.` for a referral or `Please remove me from your list.` for an opt-out. The offline demo recognizes canned examples and sends other wording to manual review. Codex and the API worker interpret free-form replies.
 
+To try **Discovery and Qualification**, open an account in **Pipeline**, select **Qualify a conversation → Use demo notes → Create discovery brief**. The example buyer needs artwork approvals tracked, identifies the process owner and requests an outline. Compare the **advance** recommendation with the excerpts and the remaining question about approval authority. To try **close**, paste `Buyer: We have ended this project. Please close the opportunity.` Other free-form notes use the scripted **clarify** fallback in the demo. Codex and the API worker interpret free-form notes using the **Qualification rubric** in **Business setup**.
+
 Press `Ctrl+C` in the terminal to stop. Run the same command again to reopen your demo with its saved work.
 
 ## How the agents work together
@@ -47,6 +50,7 @@ Press `Ctrl+C` in the terminal to stop. Run the same command again to reopen you
 | Public research | Collector → Extractor → Evaluator | A cited report and findings to accept or reject. |
 | Account review | Research → Sales → Evaluator | A message for human review when Sales and the Evaluator both recommend it, or an explanation of why it was held. |
 | Reply triage | Operator supplies reply → Reply Triage interprets it → operator reviews the recommendation | The original message, supporting quote, intent and proposed handoff. Marking it reviewed records your review. You decide separately whether to act. |
+| Discovery and qualification | Operator supplies notes → agent applies the qualification rubric → Sales reviews the brief | Findings linked to notes, unresolved questions and an advance, clarify or close recommendation. Marking it reviewed records the review. |
 | Strategy discussion | Research and Sales propose independently → Evaluator critiques both → Orchestrator decides | The two proposals, critique and decision. A proposed test can become an experiment brief. |
 
 ## Use your own workspace

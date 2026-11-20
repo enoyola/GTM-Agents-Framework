@@ -3,6 +3,7 @@ import json
 import sqlite3
 import time
 
+from .discovery import DISCOVERY_PROMPT, DISCOVERY_SCHEMA, discovery_context, validate_discovery
 from .triage import TRIAGE_PROMPT, TRIAGE_SCHEMA, triage_context, validate_triage
 from .priority import PRIORITY_PROMPT, PRIORITY_SCHEMA, priority_context, validate_priority
 from .providers import SHARED, ROLE_PROMPTS, RESULT_SCHEMA, validate_result
@@ -19,6 +20,7 @@ class CodexProvider:
 
 
 def workflow(kind):
+    if kind=='discovery_qualification':return ['discovery_qualification']
     if kind=='reply_triage':return ['reply_triage']
     if kind=='account_priority':return ['prioritizer']
     if kind=='account_research':return ['research_search','research_extract','evaluator']
@@ -118,7 +120,11 @@ class CodexBridge:
             if existing:return json.loads(existing['packet'])
             context={**task['input'],'kind':task['kind']}
             previous={r:runs[r] for r in needed}
-            if role=='reply_triage':
+            if role=='discovery_qualification':
+                context=discovery_context(context)
+                instructions=DISCOVERY_PROMPT
+                schema=DISCOVERY_SCHEMA
+            elif role=='reply_triage':
                 context=triage_context(context)
                 instructions=TRIAGE_PROMPT
                 schema=TRIAGE_SCHEMA
@@ -163,7 +169,8 @@ class CodexBridge:
                 raise DomainError('Assignment already has a different result or agent identity.',409)
             task=self._task(db,row['task_id'])
             packet=json.loads(row['packet']);role=row['role'];context=packet['context']
-            if role=='reply_triage':validated=validate_triage(result,context)
+            if role=='discovery_qualification':validated=validate_discovery(result,context)
+            elif role=='reply_triage':validated=validate_triage(result,context)
             elif role=='prioritizer':validated=validate_priority(result,context)
             elif role=='research_search':validated=validate_report(result)
             elif role=='research_extract':validated=validate_findings(result,context['report'])

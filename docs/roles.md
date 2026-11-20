@@ -1,6 +1,6 @@
 # Role descriptions
 
-Account Prioritization, Research, Sales, Reply Triage, Evaluator and Orchestrator participate in the local workflow. Public research has separate collection and extraction assignments. The deal function, delivery and playbook promotion below describe the full design. The runtime produces internal artifacts for review.
+Account Prioritization, Research, Sales, Reply Triage, Discovery and Qualification, Evaluator and Orchestrator participate in the local workflow. Public research has separate collection and extraction assignments. The deal function, delivery and playbook promotion below describe the full design. The runtime produces internal artifacts for review.
 
 ## Shared instructions for every role
 
@@ -119,6 +119,12 @@ See the [executable review policy](../gtm_agents/outreach.py).
 Read one operator-supplied inbound message. Identify its primary intent, quote the exact words that support the classification and summarize the request. If the reply contains multiple requests, preserve that context and prioritize an explicit opt-out. A referral can identify a team; it gives the operator a handoff to review.
 
 Pricing, buyer questions and interest go to Sales for review. Referrals suggest an internal handoff, declines suggest closure and opt-outs suggest suppression review. Automatic replies and ambiguous wording go to the operator. Only the reply text reaches the role. Each message keeps its own history in Pipeline with the classification and review timestamp. Any contact or account change requires a separate operator action.
+
+## Discovery and Qualification
+
+Use after a substantive buyer conversation. Work from the supplied notes, offer and qualification rubric frozen when the task was queued. Attribute each confirmed need, constraint or decision participant to an exact excerpt. Keep seller hypotheses and unconfirmed budget, authority or timing in the open questions. A note-taker’s paraphrase remains a notes excerpt.
+
+Recommend **advance** when positive buyer evidence satisfies the configured rubric. Recommend **close** for an explicit stop or a supported disqualifier. Recommend **clarify** when material evidence is missing or contradictory. With an unset rubric, extract supported findings and clarify the gaps, or recommend closure for an explicit rejection. Operators can inspect the brief beside the source notes and record their review. Pipeline changes and next actions require separate decisions.
 
 ## Deal function
 

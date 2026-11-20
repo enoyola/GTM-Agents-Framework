@@ -112,7 +112,7 @@ class ReplyTriageCase(unittest.TestCase):
 
     def test_v4_migration_preserves_foreign_keys_and_adds_triage(self):
         path = self.root / 'legacy.db'
-        old = SCHEMA.replace("'account_priority','reply_triage'", "'account_priority'")
+        old = SCHEMA.replace("'account_priority','reply_triage','discovery_qualification'", "'account_priority'")
         with sqlite3.connect(path) as db:
             db.executescript(old)
             db.execute('DROP TABLE reply_reviews')
@@ -121,7 +121,7 @@ class ReplyTriageCase(unittest.TestCase):
             db.execute('PRAGMA user_version=4')
         store = Store(path)
         with store.connect() as db:
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],5)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],6)
             self.assertFalse(db.execute('PRAGMA foreign_key_check').fetchall())
             self.assertEqual(db.execute('SELECT task_id FROM agent_runs').fetchone()[0],'prior')
         account_id = self.add_account(store)
