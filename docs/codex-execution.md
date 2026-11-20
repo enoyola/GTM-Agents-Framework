@@ -14,6 +14,7 @@ Codex is now the default executor. Create/queue research, account reviews or a s
 
 | Workflow | Separate agent executions |
 |---|---|
+| Account prioritization | One prioritizer per assessed account |
 | Public research | Collector → Extractor → Evaluator |
 | Account review | Research → Sales → Evaluator |
 | Strategy | Research and Sales independently → Evaluator → Orchestrator |
@@ -60,6 +61,8 @@ python3 -m gtm_agents codex heartbeat --task-id TASK_ID
 python3 -m gtm_agents codex fail --task-id TASK_ID --reason "Agent execution interrupted"
 ```
 
+For a priority assessment, queue `{"kind":"account_priority","account_id":"ACCOUNT_ID","request_key":"UNIQUE_KEY"}`. Request the `prioritizer` packet and submit its result through the usual bridge. Each assessment uses saved evidence and the configured targeting rules. The workspace state includes the latest assessments under `priorities`. A fresh task key requests a new assessment.
+
 A strategy request contains `kind: strategy`, `question`, and an explicit unique `request_key`. Account work additionally requires `account_id`. Public research uses `kind: account_research` and a public focus in `question`. Prefer tool arguments or JSON files over interpolating business text into shell commands.
 
 ## Coordinator procedure
@@ -85,7 +88,7 @@ Extraction and evaluation use the saved report. Findings remain pending (or bloc
 
 ## Persistence and recovery
 
-Schema version 3 adds immutable `codex_assignments` alongside existing `agent_runs`, research candidates, discussions and events. Task inputs carry `executor: codex`; legacy/API tasks default to `api`. Default dashboard startup does not start the API worker. A running API worker filters its queue and cannot execute a Codex task.
+Schema version 4 adds account priorities and repairs legacy account stages for held reviews. Earlier versions introduced immutable `codex_assignments` alongside existing `agent_runs`, research candidates, discussions and events. Task inputs carry `executor: codex`; legacy/API tasks default to `api`. Default dashboard startup does not start the API worker. A running API worker filters its queue and cannot execute a Codex task.
 
 All completed outputs remain in SQLite even when the Codex turn ends. Raw role packet/result files in `work/` are temporary handoff artifacts. Restart the dashboard to view saved work; no API key is needed. Back up SQLite before upgrading a valuable workspace.
 

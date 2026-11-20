@@ -2,6 +2,7 @@
 import logging
 import threading
 
+from .codex_bridge import workflow
 from .store import DomainError
 
 log=logging.getLogger(__name__)
@@ -19,13 +20,11 @@ class Runtime:
             return False
         context={**task['input'],'kind':task['kind']}
         runs={}
-        roles=['research','sales','evaluator']
-        if task['kind']=='strategy':roles.append('orchestrator')
         try:
             if task['kind']=='account_research':
                 self.research(task,context)
                 return True
-            for role in roles:
+            for role in workflow(task['kind']):
                 if self.stop_event.is_set():
                     raise DomainError('Worker stopped. Partial results are retained; retry explicitly.')
                 self.store.run_context(task)

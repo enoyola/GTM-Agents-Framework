@@ -8,7 +8,7 @@ const content = document.getElementById('content');
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const label = value => String(value || '').replaceAll('_',' ');
 const date = value => new Date(value * 1000).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-const roleName = role => ({research:'Research',sales:'Sales',evaluator:'Evaluator',orchestrator:'Orchestrator'}[role] || role);
+const roleName = role => ({prioritizer:'Account Prioritization',research:'Research',sales:'Sales',evaluator:'Evaluator',orchestrator:'Orchestrator'}[role] || role);
 const badge = (text, style='') => `<span class="badge ${style}">${esc(text)}</span>`;
 const taskFor = id => state.tasks.find(t => t.account_id === id && ['queued','running'].includes(t.status));
 const head = (title, subtitle, action='') => `<div class="page-head"><div><div class="eyebrow">GTM OPERATIONS</div><h1>${title}</h1><p class="subtitle">${subtitle}</p></div>${action}</div>`;
@@ -49,20 +49,50 @@ function render() {
 }
 
 function stats() {
+  const latestDraft = new Map();
+  for (const draft of state.drafts) {
+    if (!latestDraft.has(draft.account_id)) latestDraft.set(draft.account_id, draft);
+  }
+  const reviewable = state.accounts.filter(account => {
+    const draft = latestDraft.get(account.id);
+    return draft?.status === 'needs_review' && draft.account_version === account.version &&
+      draft.config_version === state.config.version;
+  });
   const active=state.tasks.filter(t=>['queued','running'].includes(t.status)).length;
   return `<div class="stats">${[
     ['Accounts',state.accounts.length,'In this workspace'],
     ['Evidence records',state.evidence.length,'Sources and observations'],
-    ['Drafts to review',state.drafts.filter(d=>d.status==='needs_review').length,'Nothing has been sent'],
+    ['Drafts to review',reviewable.length,'Nothing has been sent'],
     ['Active tasks',active,state.config.paused?'Team paused':'Bounded, accountable work']
   ].map(([name,value,note])=>`<div class="stat"><div class="stat-top">${name}</div><div class="stat-value">${value}</div><div class="stat-note">${note}</div></div>`).join('')}</div>`;
 }
 
 function renderPipeline() {
   const account=state.accounts.find(a=>a.id===selected);
-  return head('Pipeline','Turn account evidence into the next right conversation.','<button class="button" data-action="add-account">＋ Add account</button>')+stats()+
+  return head('Pipeline','Turn account evidence into the next right conversation.','<button class="button" data-action="add-account">＋ Add account</button>')+stats()+priorityPanel()+
     (!state.config.segment?`<div class="panel spaced"><div class="panel-head"><span>Choose a target segment for drafts and strategy. Company research is available before that.</span><button class="button small secondary" data-view="settings">Business setup</button></div></div><br>`:'')+
     `<div class="pipeline-layout"><div><section class="panel"><div class="panel-head"><h2>Account workspace</h2><small>${state.accounts.length} accounts</small></div>${state.accounts.map(a=>`<button class="account-row ${a.id===selected?'selected':''}" data-account="${a.id}" aria-pressed="${a.id===selected}"><span class="company-mark">${esc(a.name.slice(0,2).toUpperCase())}</span><span class="account-info"><strong>${esc(a.name)}</strong><small>${esc(a.segment || 'Segment unassigned')}</small></span>${badge(a.suppressed?'Suppressed':taskFor(a.id)?'Working':label(a.stage),a.suppressed?'warn':a.stage==='drafted'?'green':'')}<span class="account-arrow" aria-hidden="true">›</span></button>`).join('') || empty('Your pipeline starts here','Add a company and the evidence that makes it relevant.')} </section><section class="panel spaced"><div class="panel-head"><h2>Recent tasks</h2><small>Durable queue</small></div><div class="side-note">${state.tasks.slice(0,5).map(t=>`<div class="task-item"><div><p>${esc(label(t.kind))}</p>${t.error?`<div class="task-error">${esc(t.error)}</div>`:''}</div>${badge(label(t.status),t.status==='failed'?'warn':'')}</div>`).join('') || '<p>No tasks yet. Select an account to start its review.</p>'}</div></section></div><section class="panel">${account?accountDetail(account):empty('Select an account','Research, drafts, and evidence stay together in one history.')}</section></div>`+teamStrip();
+}
+
+function priorityPanel() {
+  const shortlist = state.priorities.filter(p => p.current && ['strong_fit','possible_fit'].includes(p.fit));
+  if (!state.priorities.length) return '';
+  return `<section class="panel spaced"><div class="panel-head"><h2>Account shortlist</h2></div>
+    ${shortlist.length ? `<ol>${shortlist.map(p => `<li><strong>${esc(p.name)}</strong> · ${esc(label(p.fit))}
+      <p>${esc(p.reason)}</p><small>To verify: ${esc(p.missing_fact)}</small></li>`).join('')}</ol>`
+      : '<p class="side-note">No current assessments qualify for the shortlist.</p>'}
+    <p class="side-note">Strategy uses up to 20 shortlisted accounts. Accounts with equal fit are ordered by domain.</p></section>`;
+}
+
+function accountPriority(a, task) {
+  const p = state.priorities.find(row => row.account_id === a.id);
+  const disabled = task || a.suppressed || state.config.paused || !state.runtime.ready;
+  return `<div class="detail-section"><div class="section-label">ACCOUNT PRIORITY</div>
+    ${p ? `${badge(p.current ? label(p.fit) : 'Outdated assessment',p.current ? '' : 'warn')}
+      <p>${esc(p.reason)}</p><p class="hint">To verify: ${esc(p.missing_fact)}</p>
+      <p class="source">Evidence: ${p.evidence_ids.map(esc).join(', ')}</p>` : ''}
+    <button class="button small secondary" data-action="priority" ${disabled ? 'disabled' : ''}>
+      ${task?.kind === 'account_priority' ? 'Assessment in progress…' : 'Assess priority'}</button></div>`;
 }
 
 function accountDetail(a) {
@@ -72,7 +102,7 @@ function accountDetail(a) {
   const runs=state.agent_runs.filter(r=>r.task_id===(draft?.task_id || task?.id));
   const evaluator=runs.find(r=>r.role==='evaluator');
   const stale=draft && (draft.account_version!==a.version || draft.config_version!==state.config.version);
-  return `<div class="detail-header"><div class="detail-title"><span class="company-mark">${esc(a.name.slice(0,2).toUpperCase())}</span><div><h2>${esc(a.name)}</h2><small>${esc(a.domain)} · ${a.is_demo?'Fictional account':'Local record'}</small></div></div>${badge('Owner: '+a.owner)}</div><div class="workflow"><div class="workflow-step done"><span class="step-number">01</span>Evidence</div><div class="workflow-step ${draft?'done':''}"><span class="step-number">02</span>Draft</div><div class="workflow-step"><span class="step-number">03</span>Review</div></div><div class="detail-section"><div class="section-label"><span>ACCOUNT EVIDENCE</span><button class="text-button" data-action="add-evidence">＋ Add source</button></div>${evidence.slice(0,6).map(e=>`<div class="evidence-item"><p>${esc(e.claim)}</p><div class="source">${esc(label(e.kind))} · ${esc(e.source)}<br>${esc(e.id)}</div></div>`).join('')}<div class="detail-actions"><button class="button small" data-action="review" ${a.suppressed||task||state.config.paused?'disabled':''}>${task?'Account work in progress…':draft?'Run new review':'Run account review'}</button>${!a.suppressed?'<button class="button small danger" data-action="suppress">Suppress account</button>':badge('Suppressed','warn')}</div><p class="hint spaced">${state.demo?'Scripted demo: research → draft → evaluation.':state.runtime.provider==='codex'?'Separate Codex agents: research → draft → evaluation. Queue a task here, then ask Codex to execute it.':'Three bounded model calls: research → draft → evaluation. Reviews use accepted account evidence. Run public research below to propose new findings.'}</p></div>${researchDetail(a)}<div class="detail-section"><div class="section-label"><span>LATEST OUTREACH DRAFT</span>${draft?badge(stale?'Inputs changed':label(draft.status),stale||draft.status==='blocked'?'warn':''):''}</div>${draft?`<div class="draft-body">${esc(draft.body)}</div><div class="detail-actions"><button class="button secondary small" data-action="check-draft" data-id="${draft.id}">Check action readiness</button></div><p class="source">Sources: ${esc(draft.evidence_ids.join(', '))}</p>`:'<p class="hint">The sales agent will prepare a draft after reviewing the account evidence. All drafts remain local.</p>'}</div>${evaluator?`<div class="detail-section"><div class="section-label">EVALUATOR NOTES</div><p class="draft-body">${esc(evaluator.output.content)}</p></div>`:''}`;
+  return `<div class="detail-header"><div class="detail-title"><span class="company-mark">${esc(a.name.slice(0,2).toUpperCase())}</span><div><h2>${esc(a.name)}</h2><small>${esc(a.domain)} · ${a.is_demo?'Fictional account':'Local record'}</small></div></div>${badge('Owner: '+a.owner)}</div><div class="workflow"><div class="workflow-step done"><span class="step-number">01</span>Evidence</div><div class="workflow-step ${draft?.status==='needs_review'?'done':''}"><span class="step-number">02</span>Draft</div><div class="workflow-step"><span class="step-number">03</span>Review</div></div><div class="detail-section"><div class="section-label"><span>ACCOUNT EVIDENCE</span><button class="text-button" data-action="add-evidence">＋ Add source</button></div>${evidence.slice(0,6).map(e=>`<div class="evidence-item"><p>${esc(e.claim)}</p><div class="source">${esc(label(e.kind))} · ${esc(e.source)}<br>${esc(e.id)}</div></div>`).join('')}<div class="detail-actions"><button class="button small" data-action="review" ${a.suppressed||task||state.config.paused?'disabled':''}>${task?'Account work in progress…':draft?'Run new review':'Run account review'}</button>${!a.suppressed?'<button class="button small danger" data-action="suppress">Suppress account</button>':badge('Suppressed','warn')}</div><p class="hint spaced">${state.demo?'Scripted demo: research → draft → evaluation.':state.runtime.provider==='codex'?'Separate Codex agents: research → draft → evaluation. Queue a task here, then ask Codex to execute it.':'Three bounded model calls: research → draft → evaluation. Reviews use accepted account evidence. Run public research below to propose new findings.'}</p></div>${accountPriority(a,task)}${researchDetail(a)}<div class="detail-section"><div class="section-label"><span>${draft?.status==='blocked'?'HELD REVIEW':'LATEST OUTREACH DRAFT'}</span>${draft?badge(stale?'Inputs changed':label(draft.status),stale||draft.status==='blocked'?'warn':''):''}</div>${draft?`<div class="draft-body">${esc(draft.body)}</div><div class="detail-actions"><button class="button secondary small" data-action="check-draft" data-id="${draft.id}">Check action readiness</button></div><p class="source">Sources: ${esc(draft.evidence_ids.join(', '))}</p>`:'<p class="hint">The sales agent will prepare a draft after reviewing the account evidence. All drafts remain local.</p>'}</div>${evaluator?`<div class="detail-section"><div class="section-label">EVALUATOR NOTES</div><p class="draft-body">${esc(evaluator.output.content)}</p></div>`:''}`;
 }
 
 function sourceLink(source) {
@@ -118,7 +148,7 @@ function researchDetail(a) {
 }
 
 function teamStrip() {
-  return `<div class="team-strip">${[['O','Orchestrator','Coordinates the work'],['R','Research','Checks account evidence'],['S','Sales','Prepares conversations'],['E','Evaluator','Challenges assumptions']].map(([initial,name,desc])=>`<div class="agent-chip"><span class="agent-avatar">${initial}</span><div><strong>${name}</strong><small>${desc}</small></div></div>`).join('')}</div>`;
+  return `<div class="team-strip">${[['P','Account Prioritization','Assesses account fit'],['O','Orchestrator','Closes strategy discussions'],['R','Research','Checks account evidence'],['S','Sales','Prepares conversations'],['E','Evaluator','Challenges assumptions']].map(([initial,name,desc])=>`<div class="agent-chip"><span class="agent-avatar">${initial}</span><div><strong>${name}</strong><small>${desc}</small></div></div>`).join('')}</div>`;
 }
 
 function renderStrategy() {
@@ -154,7 +184,7 @@ function eventSummary(e) {
 
 function renderSettings() {
   const c=state.config;
-  return head('Business setup','Give the team a clear offer, audience, and source of truth.')+`<div class="settings-layout"><section class="panel"><form id="settings-form" class="settings-form" data-version="${c.version}"><label>Business name<input name="business_name" required maxlength="3000" value="${esc(c.business_name)}"></label><label>Offer<textarea name="offer" required maxlength="3000" rows="3">${esc(c.offer)}</textarea></label><label>Target customer segment<textarea name="segment" required maxlength="3000" rows="2" placeholder="Industry, geography, operational workflow, and buyer.">${esc(c.segment)}</textarea></label><label>Approved factual claims <span class="hint">· one per line</span><textarea name="approved_claims" required rows="4">${esc(c.approved_claims.join('\n'))}</textarea></label><label>Qualification rubric<textarea name="qualification_rubric" rows="3" maxlength="5000" placeholder="What evidence makes an opportunity qualified?">${esc(c.qualification_rubric)}</textarea></label><div class="form-actions"><span class="hint">Version ${c.version} · Changes invalidate older task inputs.</span><button class="button" type="submit">Save configuration</button></div></form></section><div class="stack"><section class="panel side-note"><h3>Your operating setup</h3><div class="connection-row">CRM <span>Built-in account workspace</span></div><div class="connection-row">Model <span>${esc(state.runtime.model || 'Not configured')}</span></div><div class="connection-row">Provider <span>${state.demo?'Scripted demo':esc(state.runtime.provider)}</span></div><div class="connection-row">Outreach <span>Unavailable</span></div><div class="connection-row">Email review <span>Required</span></div><div class="connection-row">Data <span>Local SQLite</span></div></section><section class="panel side-note"><h3>Agent execution</h3><p>Default: <code>python3 -m gtm_agents serve --executor codex</code>. Queue work here, then ask Codex to run pending GTM tasks. Separate agent sessions save outputs into this workspace. Codex usage limits apply; there is no automatic background dispatcher.</p><p class="spaced">For the optional API worker, use <code>--executor api</code>.</p><p>In your terminal, set <code>OPENAI_API_KEY</code> and <code>GTM_MODEL</code>, then start without <code>--demo</code>. Or use <code>--env-file .env</code>. Run <code>python3 -m gtm_agents doctor --env-file .env --live</code> to verify access with one small paid request. Credentials stay on the server.</p><p class="spaced">Account reviews use up to 3 calls; strategy discussions use 4. Research uses up to 3 model requests and 3 web tool calls. Only the selected evidence packet and configured business context are sent to the model when you run a task.</p></section></div></div>`;
+  return head('Business setup','Give the team a clear offer, audience, and source of truth.')+`<div class="settings-layout"><section class="panel"><form id="settings-form" class="settings-form" data-version="${c.version}"><label>Business name<input name="business_name" required maxlength="3000" value="${esc(c.business_name)}"></label><label>Offer<textarea name="offer" required maxlength="3000" rows="3">${esc(c.offer)}</textarea></label><label>Target customer segment<textarea name="segment" required maxlength="3000" rows="2" placeholder="Industry, geography, operational workflow, and buyer.">${esc(c.segment)}</textarea></label><label>Approved factual claims <span class="hint">· one per line</span><textarea name="approved_claims" required rows="4">${esc(c.approved_claims.join('\n'))}</textarea></label><label>Priority exclusions<textarea name="priority_exclusions" rows="2" maxlength="5000" placeholder="Which accounts should be excluded from the shortlist?">${esc(c.priority_exclusions)}</textarea></label><label>Qualification rubric<textarea name="qualification_rubric" rows="3" maxlength="5000" placeholder="What evidence makes an opportunity qualified?">${esc(c.qualification_rubric)}</textarea></label><div class="form-actions"><span class="hint">Version ${c.version} · Changes invalidate older task inputs.</span><button class="button" type="submit">Save configuration</button></div></form></section><div class="stack"><section class="panel side-note"><h3>Your operating setup</h3><div class="connection-row">CRM <span>Built-in account workspace</span></div><div class="connection-row">Model <span>${esc(state.runtime.model || 'Not configured')}</span></div><div class="connection-row">Provider <span>${state.demo?'Scripted demo':esc(state.runtime.provider)}</span></div><div class="connection-row">Outreach <span>Unavailable</span></div><div class="connection-row">Email review <span>Required</span></div><div class="connection-row">Data <span>Local SQLite</span></div></section><section class="panel side-note"><h3>Agent execution</h3><p>Default: <code>python3 -m gtm_agents serve --executor codex</code>. Queue work here, then ask Codex to run pending GTM tasks. Separate agent sessions save outputs into this workspace. Codex usage limits apply; there is no automatic background dispatcher.</p><p class="spaced">For the optional API worker, use <code>--executor api</code>.</p><p>In your terminal, set <code>OPENAI_API_KEY</code> and <code>GTM_MODEL</code>, then start without <code>--demo</code>. Or use <code>--env-file .env</code>. Run <code>python3 -m gtm_agents doctor --env-file .env --live</code> to verify access with one small paid request. Credentials stay on the server.</p><p class="spaced">Account reviews use up to 3 calls; strategy discussions use 4. Research uses up to 3 model requests and 3 web tool calls. Only the selected evidence packet and configured business context are sent to the model when you run a task.</p></section></div></div>`;
 }
 
 document.addEventListener('click',async event=>{
@@ -170,6 +200,7 @@ document.addEventListener('click',async event=>{
   const action=button.dataset.action;if(!action)return;
   button.disabled=true;
   try {
+    if(action==='priority'){await api('tasks',{kind:'account_priority',account_id:selected,request_key:crypto.randomUUID()});toast('Priority assessment queued.');}
     if(action==='review'){await api('tasks',{kind:'account_review',account_id:selected,request_key:crypto.randomUUID()});toast('Account review queued.');}
     if(action==='accept-finding' || action==='reject-finding'){await api('research-findings',{finding_id:button.dataset.id,decision:action==='accept-finding'?'accepted':'rejected'});toast('Finding reviewed.');}
     if(action==='suppress'){await api('suppress',{account_id:selected});toast('Account suppressed. Pending work was canceled.');}

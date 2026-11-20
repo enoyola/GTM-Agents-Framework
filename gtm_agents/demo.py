@@ -11,6 +11,7 @@ def seed(store):
             'version':state['config']['version'],'business_name':'Example Studio',
             'offer':'Illustrative scoped workflow automation pilot. Actual scope and terms are not configured.',
             'segment':'Fictional operations teams used to demonstrate the control room.',
+            'priority_exclusions':'Business has closed permanently.',
             'approved_claims':['Example Studio explores scoped workflow automation pilots; actual workflow and access need validation.'],
             'qualification_rubric':'Demo only: confirm workflow relevance, a process owner, and a useful next step.',
         })

@@ -3,6 +3,7 @@ import json
 import sqlite3
 import time
 
+from .priority import PRIORITY_PROMPT, PRIORITY_SCHEMA, priority_context, validate_priority
 from .providers import SHARED, ROLE_PROMPTS, RESULT_SCHEMA, validate_result
 from .research import RESEARCH_PROMPT, FINDINGS_SCHEMA, public_url, validate_findings
 from .store import DomainError, encode, required, uid
@@ -17,6 +18,7 @@ class CodexProvider:
 
 
 def workflow(kind):
+    if kind=='account_priority':return ['prioritizer']
     if kind=='account_research':return ['research_search','research_extract','evaluator']
     if kind=='strategy':return ['research','sales','evaluator','orchestrator']
     return ['research','sales','evaluator']
@@ -114,7 +116,11 @@ class CodexBridge:
             if existing:return json.loads(existing['packet'])
             context={**task['input'],'kind':task['kind']}
             previous={r:runs[r] for r in needed}
-            if role=='research_search':
+            if role=='prioritizer':
+                context=priority_context(context)
+                instructions=PRIORITY_PROMPT
+                schema=PRIORITY_SCHEMA
+            elif role=='research_search':
                 account=context['accounts'][0]
                 context={'company':{'name':account['name'],'domain':account['domain']},'focus':context['question']}
                 instructions=RESEARCH_PROMPT+'\nUse the available Codex web tools. Cite only pages actually read. Retrieval timestamps must reflect this run. Report source limitations honestly. Do not invent provider search-call metadata.'
@@ -151,7 +157,8 @@ class CodexBridge:
                 raise DomainError('Assignment already has a different result or agent identity.',409)
             task=self._task(db,row['task_id'])
             packet=json.loads(row['packet']);role=row['role'];context=packet['context']
-            if role=='research_search':validated=validate_report(result)
+            if role=='prioritizer':validated=validate_priority(result,context)
+            elif role=='research_search':validated=validate_report(result)
             elif role=='research_extract':validated=validate_findings(result,context['report'])
             else:validated=validate_result(result,context)
             try:

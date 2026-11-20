@@ -8,6 +8,7 @@ For example, the demo includes a fictional packaging company where artwork revis
 
 | Agent | Its job |
 | --- | --- |
+| **Account Prioritization** | Assesses an account against your target segment, qualification rubric and exclusions. Its fit decision cites evidence, explains the reason and identifies one fact to verify. Current assessments form the shortlist for strategy. |
 | **Research** | Writes an account brief from the evidence on file. It explains why the offer might fit and lists what Sales still needs to learn. In a strategy discussion, it proposes an approach independently of Sales. |
 | **Sales** | Uses the brief and the approved offer to draft a message for a specific recipient. If a credible message needs more evidence, it explains what is missing. In a strategy discussion, it contributes the seller’s perspective. |
 | **Evaluator** | Reviews another agent’s work. It checks research claims against citations, reads a draft from the recipient’s perspective, and challenges assumptions in strategy proposals. |
@@ -31,12 +32,15 @@ Leave the terminal running and open the [local dashboard](http://127.0.0.1:8765)
 2. In **Strategy room**, find the discussion “How should we explain a focused workflow pilot?” Read the Research and Sales proposals, the Evaluator’s challenge and the **Orchestrator decision**. Notice which part of the message the team proposes changing and what it would hold constant.
 3. Select **Create experiment brief**, then open **Learning**. You’ll see the hypothesis, the proposed metric and the details a person would still need to define before running the test.
 
+To try prioritization, choose **Assess priority** on each fictional account in **Pipeline**. The shortlist shows the reasoning and the next fact to verify. In the scripted demo, Forma Packaging leads because of its documented artwork approval step. To see the ranking change, check that **Business setup → Priority exclusions** contains `Business has closed permanently.` (prefilled in a new demo). Add the observation `Business has closed permanently.` to that fictional account and assess it again. The demo recognizes this exact scenario. In Codex or API mode, the agent interprets the targeting rules and evidence.
+
 Press `Ctrl+C` in the terminal to stop. Run the same command again to reopen your demo with its saved work.
 
 ## How the agents work together
 
 | Workflow | Order of work | What you review |
 | --- | --- | --- |
+| Account prioritization | Assess each selected account → order by fit, breaking ties by domain | A shortlist of current strong and possible fits. Accounts needing research and excluded accounts retain their reasons in Pipeline. |
 | Public research | Collector → Extractor → Evaluator | A cited report and findings to accept or reject. |
 | Account review | Research → Sales → Evaluator | A message for human review when Sales and the Evaluator both recommend it, or an explanation of why it was held. |
 | Strategy discussion | Research and Sales propose independently → Evaluator critiques both → Orchestrator decides | The two proposals, critique and decision. A proposed test can become an experiment brief. |
@@ -44,6 +48,10 @@ Press `Ctrl+C` in the terminal to stop. Run the same command again to reopen you
 ## Use your own workspace
 
 Stop the demo, then run `python3 -m gtm_agents serve` from the repository directory to open a separate workspace. In **Business setup**, enter your offer, target audience and approved claims under your business name. In **Pipeline**, add a company and a sourced observation, then select **Run account review**.
+
+For prioritization, fill in **Target customer segment** and any **Priority exclusions** in **Business setup**. Run **Assess priority** on the accounts you want to compare. Each assessment is one agent task. Changes to evidence or business settings make the affected assessments outdated. Once you have saved an assessment, new strategy discussions draw on up to 20 currently shortlisted accounts. Before the first assessment, strategy uses the existing recent-account selection.
+
+The account stage shows **Drafted** when Sales and the Evaluator recommend a draft for human review. A held review shows **Needs research** when either role requests more evidence, or **Needs revision** otherwise.
 
 The default workflow uses your Codex session. After queuing the review, open this repository in Codex and ask it to **“Run the pending GTM tasks using separate agents.”** Return to the dashboard to inspect the results. For CLI handoffs, optional MCP registration and recovery, see the [execution guide](docs/codex-execution.md).
 

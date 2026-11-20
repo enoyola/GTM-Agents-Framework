@@ -30,7 +30,7 @@ def required(value, label, maximum=5000):
 DEFAULT_CONFIG = {
     "business_name": "", "offer": "",
     "segment": "", "approved_claims": [],
-    "qualification_rubric": "", "paused": False,
+    "qualification_rubric": "", "priority_exclusions": "", "paused": False,
 }
 
 SCHEMA = """
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS evidence (
 );
 CREATE TABLE IF NOT EXISTS tasks (
  id TEXT PRIMARY KEY, account_id TEXT REFERENCES accounts(id),
- kind TEXT NOT NULL CHECK(kind IN ('account_review','strategy','account_research')),
+ kind TEXT NOT NULL CHECK(kind IN ('account_review','strategy','account_research','account_priority')),
  status TEXT NOT NULL CHECK(status IN ('queued','running','completed','failed','canceled')),
  request_key TEXT NOT NULL UNIQUE, input TEXT NOT NULL, output TEXT,
  lease_token TEXT, lease_until REAL, attempts INTEGER NOT NULL DEFAULT 0,
@@ -74,6 +74,11 @@ CREATE TABLE IF NOT EXISTS drafts (
  evidence_ids TEXT NOT NULL, account_version INTEGER NOT NULL,
  config_version INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'needs_review',
  created_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS account_priorities (
+ account_id TEXT PRIMARY KEY REFERENCES accounts(id), task_id TEXT NOT NULL UNIQUE REFERENCES tasks(id),
+ account_version INTEGER NOT NULL, config_version INTEGER NOT NULL,
+ fit TEXT NOT NULL, reason TEXT NOT NULL, missing_fact TEXT NOT NULL, evidence_ids TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS discussions (
  id TEXT PRIMARY KEY, task_id TEXT NOT NULL UNIQUE REFERENCES tasks(id),
@@ -114,7 +119,12 @@ class Store:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.demo = demo
         with self.connect() as db:
-            if db.execute('PRAGMA user_version').fetchone()[0] > 3:
+            # Keep the constraint rebuild, indexes, stage repair and version bump atomic.
+            # This connection closes after initialization; normal writes enforce foreign keys.
+            db.execute('PRAGMA foreign_keys=OFF')
+            db.execute('BEGIN IMMEDIATE')
+            version = db.execute('PRAGMA user_version').fetchone()[0]
+            if version > 4:
                 raise DomainError('This database was created by a newer runtime. Use a compatible application version.')
             if db.execute("SELECT name FROM sqlite_master WHERE name='metadata'").fetchone():
                 existing=db.execute("SELECT value FROM metadata WHERE key='mode'").fetchone()
@@ -122,9 +132,7 @@ class Store:
                     raise DomainError('This database belongs to a different workspace mode. Use a separate demo database.')
             # Rebuild only the task CHECK constraint; keep all IDs and referencing rows.
             old=db.execute("SELECT sql FROM sqlite_master WHERE name='tasks'").fetchone()
-            if old and 'account_research' not in old['sql']:
-                db.execute('PRAGMA foreign_keys=OFF')
-                db.execute('BEGIN IMMEDIATE')
+            if old and 'account_priority' not in old['sql']:
                 create=SCHEMA.split('CREATE TABLE IF NOT EXISTS tasks (')[1].split(');')[0]
                 db.execute('CREATE TABLE tasks_v2 ('+create+');')
                 db.execute('INSERT INTO tasks_v2 SELECT * FROM tasks')
@@ -132,16 +140,31 @@ class Store:
                 db.execute('ALTER TABLE tasks_v2 RENAME TO tasks')
                 if db.execute('PRAGMA foreign_key_check').fetchall():
                     raise DomainError('Database migration failed its reference check.')
-                db.commit()
-                db.execute('PRAGMA foreign_keys=ON')
-            db.executescript(SCHEMA)
+            for statement in SCHEMA.split(';'):
+                if statement.strip():
+                    db.execute(statement)
             mode = 'demo' if demo else 'local'
             existing = db.execute("SELECT value FROM metadata WHERE key='mode'").fetchone()
             if existing and existing['value'] != mode:
                 raise DomainError('This database belongs to a different workspace mode. Use a separate demo database.')
             db.execute("INSERT OR IGNORE INTO metadata VALUES ('mode',?)", (mode,))
             db.execute("INSERT OR IGNORE INTO settings VALUES (1,1,?)", (encode(DEFAULT_CONFIG),))
-            db.execute("PRAGMA user_version=3")
+            if version < 4:
+                # Repair only the latest blocked review. Keep historical runs and suppressed accounts intact.
+                db.execute("""
+                    WITH latest AS (
+                        SELECT d.account_id, d.status, t.output,
+                               row_number() OVER (PARTITION BY d.account_id ORDER BY d.created_at DESC, d.rowid DESC) AS seq
+                        FROM drafts d JOIN tasks t ON t.id=d.task_id
+                    )
+                    UPDATE accounts AS a SET stage=CASE WHEN 'research_more' IN (
+                        json_extract(l.output,'$.sales.recommendation'),
+                        json_extract(l.output,'$.evaluator.recommendation')
+                    ) THEN 'needs_research' ELSE 'needs_revision' END
+                    FROM latest AS l WHERE l.account_id=a.id AND l.seq=1 AND l.status='blocked'
+                        AND a.suppressed=0 AND a.stage='drafted'
+                """)
+                db.execute("PRAGMA user_version=4")
 
     @contextmanager
     def connect(self):
@@ -173,7 +196,7 @@ class Store:
             with self.connect() as connection:
                 return self.config(connection)
         row = db.execute("SELECT * FROM settings WHERE id=1").fetchone()
-        return {**json.loads(row['value']), "version": row['version']}
+        return {**DEFAULT_CONFIG, **json.loads(row['value']), "version": row['version']}
 
     def save_config(self, data):
         if not isinstance(data.get('approved_claims'), list) or len(data['approved_claims']) > 30:
@@ -188,7 +211,10 @@ class Store:
             old = self.config(db)
             if data.get('version') != old['version']:
                 raise DomainError('Configuration changed. Refresh before saving.', 409)
-            new = {**fields, 'approved_claims': claims, 'qualification_rubric': rubric,
+            exclusions = data.get('priority_exclusions', old['priority_exclusions'])
+            if not isinstance(exclusions, str) or len(exclusions) > 5000:
+                raise DomainError('Priority exclusions must be text, at most 5000 characters.')
+            new = {**fields, 'priority_exclusions': exclusions.strip(), 'approved_claims': claims, 'qualification_rubric': rubric,
                    'paused': old['paused']}
             db.execute("UPDATE settings SET version=version+1,value=? WHERE id=1", (encode(new),))
             self.event(db, 'config.updated', {'version': old['version'] + 1})
@@ -266,7 +292,7 @@ class Store:
         if executor not in ("api","codex"):raise DomainError("Unknown executor.")
         if executor=="codex" and self.demo:raise DomainError("Use the real workspace for Codex executions.")
         kind = data.get('kind', 'account_review')
-        if kind not in ('account_review', 'strategy', 'account_research'):
+        if kind not in ('account_review', 'strategy', 'account_research', 'account_priority'):
             raise DomainError('Unknown task kind.')
         if kind=='account_research' and self.demo:
             raise DomainError('Web research is available only in the real workspace.',409)
@@ -292,6 +318,7 @@ class Store:
             fields=('business_name','offer','approved_claims') if kind=='account_research' else ('business_name','offer','segment','approved_claims')
             if not all(config.get(k) for k in fields):
                 raise DomainError('Set the business, offer, segment and approved claims before running agents.', 409)
+            shortlist = []
             account_id = data.get('account_id') if kind != 'strategy' else None
             if kind != 'strategy':
                 account = self.account(account_id, db)
@@ -300,13 +327,32 @@ class Store:
                 accounts = [account]
             else:
                 question = required(data.get('question'), 'Strategy question', 2000)
-                accounts = [dict(r) for r in db.execute("SELECT * FROM accounts WHERE suppressed=0 ORDER BY created_at DESC LIMIT 20")]
+                has_assessments = db.execute('SELECT 1 FROM account_priorities LIMIT 1').fetchone()
+                if has_assessments:
+                    shortlist = self.priorities(db, config['version'], shortlist_only=True)
+                    if not shortlist:
+                        raise DomainError('Assess an eligible account before starting strategy. No current shortlist is available.', 409)
+                    accounts = [self.account(row['account_id'], db) for row in shortlist]
+                else:
+                    accounts = [dict(r) for r in db.execute("SELECT * FROM accounts WHERE suppressed=0 ORDER BY created_at DESC LIMIT 20")]
                 if not accounts:
                     raise DomainError('Add at least one account with evidence first.', 409)
             evidence = []
             for account in accounts:
-                evidence.extend(dict(r) for r in db.execute("SELECT * FROM evidence WHERE account_id=? ORDER BY created_at DESC LIMIT 20", (account['id'],)))
+                query = "SELECT * FROM evidence WHERE account_id=? ORDER BY created_at DESC LIMIT 20"
+                if kind == 'account_priority':
+                    query = "SELECT * FROM evidence WHERE account_id=? ORDER BY claim, source, kind, id"
+                evidence.extend(dict(r) for r in db.execute(query, (account['id'],)))
             context = {'executor':executor, 'config': config, 'accounts': accounts, 'evidence': evidence, 'question': question}
+            if shortlist:
+                context['shortlist'] = shortlist
+                # Include the actual evidence behind a priority even if it predates the recent notes.
+                present = {row['id'] for row in evidence}
+                missing = sorted({ref for item in shortlist for ref in item['evidence_ids']} - present)
+                if missing:
+                    evidence.extend(dict(row) for row in db.execute(
+                        "SELECT * FROM evidence WHERE id IN (SELECT value FROM json_each(?)) ORDER BY id",
+                        (encode(missing),)))
             if research_ids:
                 context['research_task_ids']=research_ids
                 context['supporting_research']=[]
@@ -367,6 +413,7 @@ class Store:
             account = self.account(snapshot['id'], db)
             if account['suppressed'] or account['version'] != snapshot['version']:
                 raise DomainError('Account evidence or ownership changed. Rerun with current inputs.', 409)
+        self.check_priority_inputs(db, task['input'])
         for report in task['input'].get('supporting_research',[]):
             current=[dict(r) for r in db.execute('SELECT id,status,claim FROM research_findings WHERE task_id=?',(report['task_id'],))]
             if current!=report['finding_review_states']:raise DomainError('Attached research review changed. Rerun strategy.',409)
@@ -398,7 +445,21 @@ class Store:
             db.execute("INSERT INTO drafts VALUES (?,?,?,?,?,?,?,?,?)",
                        (uid('draft'), task['id'], account['id'], draft['content'], encode(draft['evidence_ids']),
                         account['version'], task['input']['config']['version'], 'blocked' if blocked else 'needs_review', time.time()))
-            db.execute("UPDATE accounts SET stage='drafted' WHERE id=?", (account['id'],))
+            stage = 'drafted'
+            if blocked:
+                recommendations = {draft['recommendation'], runs['evaluator']['recommendation']}
+                stage = 'needs_research' if 'research_more' in recommendations else 'needs_revision'
+            db.execute("UPDATE accounts SET stage=? WHERE id=?", (stage, account['id']))
+        elif task['kind'] == 'account_priority':
+            result = runs['prioritizer']
+            account = task['input']['accounts'][0]
+            db.execute("""INSERT INTO account_priorities VALUES (?,?,?,?,?,?,?,?)
+                          ON CONFLICT(account_id) DO UPDATE SET task_id=excluded.task_id,
+                          account_version=excluded.account_version, config_version=excluded.config_version,
+                          fit=excluded.fit, reason=excluded.reason, missing_fact=excluded.missing_fact,
+                          evidence_ids=excluded.evidence_ids""",
+                       (account['id'], task['id'], account['version'], task['input']['config']['version'],
+                        result['fit'], result['reason'], result['missing_fact'], encode(result['evidence_ids'])))
         else:
             result = runs['orchestrator']
             db.execute("INSERT INTO discussions VALUES (?,?,?,?,?,?,?,?)",
@@ -475,6 +536,7 @@ class Store:
             config_version = self.config(db)['version']
             if context['config']['version'] != config_version:
                 raise DomainError('Business setup changed after this discussion. Run a new discussion before saving an experiment.', 409)
+            self.check_priority_inputs(db, context)
             for snapshot in context['accounts']:
                 current = self.account(snapshot['id'], db)
                 if current['suppressed'] or current['version'] != snapshot['version']:
@@ -502,9 +564,31 @@ class Store:
             self.event(db, 'policy.checked', {'draft_id':draft_id,'allowed':False,'reasons':reasons}, account['id'])
             return {'allowed': False, 'mode':'shadow', 'reasons': reasons}
 
+    def check_priority_inputs(self, db, context):
+        for item in context.get('shortlist', []):
+            row = db.execute('SELECT task_id FROM account_priorities WHERE account_id=?', (item['account_id'],)).fetchone()
+            if not row or row['task_id'] != item['task_id']:
+                raise DomainError('A selected priority assessment changed. Rerun strategy.', 409)
+
+    def priorities(self, db, config_version, shortlist_only=False):
+        current_fit = "AND p.account_version=a.version AND p.config_version=:version AND p.fit IN ('strong_fit','possible_fit')"
+        rows = db.execute(f"""
+            SELECT p.*, a.name, a.domain,
+                   (p.account_version=a.version AND p.config_version=:version) AS current
+            FROM account_priorities AS p JOIN accounts AS a ON a.id=p.account_id
+            WHERE a.suppressed=0 {current_fit if shortlist_only else ''}
+            ORDER BY current DESC, CASE p.fit WHEN 'strong_fit' THEN 0 WHEN 'possible_fit' THEN 1
+                     WHEN 'needs_research' THEN 2 ELSE 3 END, a.domain
+            {'LIMIT 20' if shortlist_only else ''}
+        """, {'version': config_version})
+        return [{**dict(row), 'current': bool(row['current']), 'evidence_ids': json.loads(row['evidence_ids'])}
+                for row in rows]
+
     def snapshot(self):
         with self.connect() as db:
+            db.execute('BEGIN')
             result = {'config': self.config(db), 'demo': self.demo, 'outbound_enabled':False}
+            result['priorities'] = self.priorities(db, result['config']['version'])
             for table in ('accounts','evidence','tasks','agent_runs','drafts','discussions','experiments','events','research_findings'):
                 order = 'id' if table=='events' else 'created_at'
                 rows = [dict(r) for r in db.execute(f'SELECT * FROM {table} ORDER BY {order} DESC LIMIT 300')]

@@ -18,7 +18,7 @@ def create_server(path):
         return store.snapshot()
 
     @server.tool(annotations=write)
-    def gtm_queue_task(kind:Literal['account_research','account_review','strategy'],request_key:str,account_id:str|None=None,question:str='',research_task_ids:list[str]|None=None) -> dict:
+    def gtm_queue_task(kind:Literal['account_research','account_review','strategy','account_priority'],request_key:str,account_id:str|None=None,question:str='',research_task_ids:list[str]|None=None) -> dict:
         """Queue authorized GTM work for Codex. Does not call a model, browse or send outreach. Reuse request_key only for identical work."""
         return bridge.queue({'kind':kind,'request_key':request_key,'account_id':account_id,'question':question,'research_task_ids':research_task_ids or []})
 

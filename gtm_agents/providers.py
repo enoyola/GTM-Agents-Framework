@@ -6,6 +6,7 @@ import urllib.request
 
 from .store import DomainError
 from .research import RESEARCH_PROMPT, FINDINGS_SCHEMA, parse_search, validate_findings
+from .priority import PRIORITY_PROMPT, PRIORITY_SCHEMA, priority_context, validate_priority, demo_priority
 from .outreach import OUTREACH_POLICY
 
 RESULT_SCHEMA = {
@@ -75,6 +76,9 @@ class FixtureProvider:
     def generate(self, role, context, previous):
         if not context['accounts'] or any(not a['is_demo'] for a in context['accounts']):
             raise DomainError('The scripted demo provider only accepts fictional demo accounts. Configure OpenAI for real accounts.')
+        if role == 'prioritizer':
+            scoped = priority_context(context)
+            return validate_priority(demo_priority(scoped), scoped), {'input_tokens':0,'output_tokens':0,'demo':True}
         account = context['accounts'][0]
         refs = [e['id'] for e in context['evidence'][:3]]
         is_strategy = context['kind']=='strategy'
@@ -108,17 +112,23 @@ class OpenAIProvider:
     def generate(self, role, context, previous):
         if not self.ready:
             raise DomainError('Set GTM_MODEL and OPENAI_API_KEY in the server environment to use model-backed agents.')
+        if role == 'prioritizer':
+            context = priority_context(context)
+            instructions, schema, validate = PRIORITY_PROMPT, PRIORITY_SCHEMA, validate_priority
+        else:
+            instructions = SHARED+'\nAssigned role: '+role+'\n'+ROLE_PROMPTS[role]
+            schema, validate = RESULT_SCHEMA, validate_result
         packet = {'task':context, 'previous_role_outputs':previous}
         payload = {
             'model':self.model, 'store':False,
-            'instructions':SHARED+'\nAssigned role: '+role+'\n'+ROLE_PROMPTS[role],
+            'instructions':instructions,
             'input':json.dumps(packet,ensure_ascii=False),
             'max_output_tokens':min(6000,max(1000,int(os.environ.get('GTM_MAX_OUTPUT_TOKENS','3000')))),
-            'text':{'format':{'type':'json_schema','name':'gtm_role_result','strict':True,'schema':RESULT_SCHEMA}},
+            'text':{'format':{'type':'json_schema','name':'gtm_role_result','strict':True,'schema':schema}},
         }
         body=self._request(payload)
         result=self._json_result(body)
-        return validate_result(result,context), self._usage(body)
+        return validate(result,context), self._usage(body)
 
     def _request(self, payload):
         if not self.ready:

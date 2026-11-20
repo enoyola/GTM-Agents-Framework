@@ -214,6 +214,8 @@ class WorkspaceCase(unittest.TestCase):
                     Runtime(self.store,WithholdingProvider()).run_once()
                     draft=self.store.snapshot()['drafts'][0]
                     self.assertEqual(draft['status'],'blocked')
+                    stage = next(a['stage'] for a in self.store.snapshot()['accounts'] if a['id']==self.account['id'])
+                    self.assertEqual(stage, 'needs_research' if decision=='research_more' else 'needs_revision')
                     self.assertFalse(self.store.inspect_draft(draft['id'])['allowed'])
 
 

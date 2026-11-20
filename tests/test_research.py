@@ -126,7 +126,7 @@ class ResearchCase(unittest.TestCase):
 
     def test_v1_migration_preserves_foreign_keys_and_existing_records(self):
         oldpath=Path(self.temp.name)/'v1.sqlite3'
-        old_schema=SCHEMA.replace("'account_review','strategy','account_research'","'account_review','strategy'")
+        old_schema=SCHEMA.replace("'account_review','strategy','account_research','account_priority'","'account_review','strategy'")
         with sqlite3.connect(oldpath) as db:db.executescript(old_schema)
         # Seed a complete legacy graph directly, including a child of tasks.
         with sqlite3.connect(oldpath) as db:
@@ -136,7 +136,7 @@ class ResearchCase(unittest.TestCase):
         migrated=Store(oldpath)
         with migrated.connect() as db:
             self.assertFalse(db.execute('PRAGMA foreign_key_check').fetchall())
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],3)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],4)
             self.assertEqual(db.execute('SELECT task_id FROM agent_runs').fetchone()[0],'t')
             self.assertIn('account_research',db.execute("SELECT sql FROM sqlite_master WHERE name='tasks'").fetchone()[0])
             self.assertIsNotNone(db.execute("SELECT name FROM sqlite_master WHERE name='active_account_task'").fetchone())

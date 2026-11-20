@@ -1,6 +1,6 @@
 # Role descriptions
 
-Research, Sales, Evaluator and Orchestrator participate in the local workflow. Public research has separate collection and extraction assignments. The deal function, delivery and playbook promotion below describe the full design. The runtime produces internal artifacts for review.
+Account Prioritization, Research, Sales, Evaluator and Orchestrator participate in the local workflow. Public research has separate collection and extraction assignments. The deal function, delivery and playbook promotion below describe the full design. The runtime produces internal artifacts for review.
 
 ## Shared instructions for every role
 
@@ -17,6 +17,12 @@ Consult another role when its expertise can materially improve the task. Use a s
 Write a concise decision rationale suitable for an operator, not hidden chain-of-thought. Return a structured result with status, task ID, account ID if applicable, output references, evidence references, unresolved questions, next action, usage, and escalation reason if needed.
 
 Do not change commercial authority, your own permissions, credentials, or evaluation criteria. Learning updates facts and candidate playbooks through the defined process. Preserve an account's existing promises when a general playbook changes.
+
+## Account Prioritization
+
+Assess one account against the configured offer, target segment, qualification rubric and exclusions. Return a fit category, a reason, references to that account’s evidence and one fact that could change the decision. A supported exclusion takes precedence over signs of fit. Use **needs research** for insufficient or contradictory evidence. The operator can inspect excluded accounts and reassess them when circumstances change.
+
+The dashboard orders current strong fits before possible fits, with domain as a stable tie-breaker. Assessment is independent of outreach review and has no effect on send authority.
 
 ## Orchestrator
 
