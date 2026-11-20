@@ -8,7 +8,7 @@ const content = document.getElementById('content');
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const label = value => String(value || '').replaceAll('_',' ');
 const date = value => new Date(value * 1000).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-const roleName = role => ({prioritizer:'Account Prioritization',research:'Research',sales:'Sales',evaluator:'Evaluator',orchestrator:'Orchestrator'}[role] || role);
+const roleName = role => ({reply_triage:'Reply Triage',prioritizer:'Account Prioritization',research:'Research',sales:'Sales',evaluator:'Evaluator',orchestrator:'Orchestrator'}[role] || role);
 const badge = (text, style='') => `<span class="badge ${style}">${esc(text)}</span>`;
 const taskFor = id => state.tasks.find(t => t.account_id === id && ['queued','running'].includes(t.status));
 const head = (title, subtitle, action='') => `<div class="page-head"><div><div class="eyebrow">GTM OPERATIONS</div><h1>${title}</h1><p class="subtitle">${subtitle}</p></div>${action}</div>`;
@@ -95,6 +95,26 @@ function accountPriority(a, task) {
       ${task?.kind === 'account_priority' ? 'Assessment in progress…' : 'Assess priority'}</button></div>`;
 }
 
+function replyHistory(account, task) {
+  const replies = state.reply_triages.filter(row => row.account_id === account.id);
+  const disabled = task || account.suppressed || state.config.paused || !state.runtime.ready;
+  const cards = replies.map(row => {
+    const result = row.result;
+    const status = result ? (row.reviewed_at ? 'Reviewed' : 'Needs review') : label(row.status);
+    return `<article class="evidence-item">
+      ${badge(status)} <small>${esc(date(row.created_at))}</small>
+      ${result ? `<h3>${esc(label(result.intent))}</h3><p>${esc(result.summary)}</p>
+        <blockquote>${esc(result.quote)}</blockquote><p>Suggested action · ${esc(label(result.next_action))}</p>` : ''}
+      <details><summary>Original reply</summary><p class="draft-body">${esc(row.reply_text)}</p></details>
+      ${row.error ? `<p class="task-error">${esc(row.error)}</p>` : ''}
+      ${result && !row.reviewed_at ? `<button class="text-button" data-action="review-reply" data-id="${esc(row.task_id)}">Mark reviewed</button>` : ''}
+    </article>`;
+  });
+  return `<div class="detail-section"><div class="section-label">REPLY TRIAGE
+    <button class="button small secondary" data-action="triage-reply" ${disabled ? 'disabled' : ''}>Triage a reply</button>
+    </div>${cards.join('')}</div>`;
+}
+
 function accountDetail(a) {
   const evidence=state.evidence.filter(e=>e.account_id===a.id);
   const draft=state.drafts.find(d=>d.account_id===a.id);
@@ -102,7 +122,7 @@ function accountDetail(a) {
   const runs=state.agent_runs.filter(r=>r.task_id===(draft?.task_id || task?.id));
   const evaluator=runs.find(r=>r.role==='evaluator');
   const stale=draft && (draft.account_version!==a.version || draft.config_version!==state.config.version);
-  return `<div class="detail-header"><div class="detail-title"><span class="company-mark">${esc(a.name.slice(0,2).toUpperCase())}</span><div><h2>${esc(a.name)}</h2><small>${esc(a.domain)} · ${a.is_demo?'Fictional account':'Local record'}</small></div></div>${badge('Owner: '+a.owner)}</div><div class="workflow"><div class="workflow-step done"><span class="step-number">01</span>Evidence</div><div class="workflow-step ${draft?.status==='needs_review'?'done':''}"><span class="step-number">02</span>Draft</div><div class="workflow-step"><span class="step-number">03</span>Review</div></div><div class="detail-section"><div class="section-label"><span>ACCOUNT EVIDENCE</span><button class="text-button" data-action="add-evidence">＋ Add source</button></div>${evidence.slice(0,6).map(e=>`<div class="evidence-item"><p>${esc(e.claim)}</p><div class="source">${esc(label(e.kind))} · ${esc(e.source)}<br>${esc(e.id)}</div></div>`).join('')}<div class="detail-actions"><button class="button small" data-action="review" ${a.suppressed||task||state.config.paused?'disabled':''}>${task?'Account work in progress…':draft?'Run new review':'Run account review'}</button>${!a.suppressed?'<button class="button small danger" data-action="suppress">Suppress account</button>':badge('Suppressed','warn')}</div><p class="hint spaced">${state.demo?'Scripted demo: research → draft → evaluation.':state.runtime.provider==='codex'?'Separate Codex agents: research → draft → evaluation. Queue a task here, then ask Codex to execute it.':'Three bounded model calls: research → draft → evaluation. Reviews use accepted account evidence. Run public research below to propose new findings.'}</p></div>${accountPriority(a,task)}${researchDetail(a)}<div class="detail-section"><div class="section-label"><span>${draft?.status==='blocked'?'HELD REVIEW':'LATEST OUTREACH DRAFT'}</span>${draft?badge(stale?'Inputs changed':label(draft.status),stale||draft.status==='blocked'?'warn':''):''}</div>${draft?`<div class="draft-body">${esc(draft.body)}</div><div class="detail-actions"><button class="button secondary small" data-action="check-draft" data-id="${draft.id}">Check action readiness</button></div><p class="source">Sources: ${esc(draft.evidence_ids.join(', '))}</p>`:'<p class="hint">The sales agent will prepare a draft after reviewing the account evidence. All drafts remain local.</p>'}</div>${evaluator?`<div class="detail-section"><div class="section-label">EVALUATOR NOTES</div><p class="draft-body">${esc(evaluator.output.content)}</p></div>`:''}`;
+  return `<div class="detail-header"><div class="detail-title"><span class="company-mark">${esc(a.name.slice(0,2).toUpperCase())}</span><div><h2>${esc(a.name)}</h2><small>${esc(a.domain)} · ${a.is_demo?'Fictional account':'Local record'}</small></div></div>${badge('Owner: '+a.owner)}</div><div class="workflow"><div class="workflow-step done"><span class="step-number">01</span>Evidence</div><div class="workflow-step ${draft?.status==='needs_review'?'done':''}"><span class="step-number">02</span>Draft</div><div class="workflow-step"><span class="step-number">03</span>Review</div></div><div class="detail-section"><div class="section-label"><span>ACCOUNT EVIDENCE</span><button class="text-button" data-action="add-evidence">＋ Add source</button></div>${evidence.slice(0,6).map(e=>`<div class="evidence-item"><p>${esc(e.claim)}</p><div class="source">${esc(label(e.kind))} · ${esc(e.source)}<br>${esc(e.id)}</div></div>`).join('')}<div class="detail-actions"><button class="button small" data-action="review" ${a.suppressed||task||state.config.paused?'disabled':''}>${task?'Account work in progress…':draft?'Run new review':'Run account review'}</button>${!a.suppressed?'<button class="button small danger" data-action="suppress">Suppress account</button>':badge('Suppressed','warn')}</div><p class="hint spaced">${state.demo?'Scripted demo: research → draft → evaluation.':state.runtime.provider==='codex'?'Separate Codex agents: research → draft → evaluation. Queue a task here, then ask Codex to execute it.':'Three bounded model calls: research → draft → evaluation. Reviews use accepted account evidence. Run public research below to propose new findings.'}</p></div>${accountPriority(a,task)}${replyHistory(a,task)}${researchDetail(a)}<div class="detail-section"><div class="section-label"><span>${draft?.status==='blocked'?'HELD REVIEW':'LATEST OUTREACH DRAFT'}</span>${draft?badge(stale?'Inputs changed':label(draft.status),stale||draft.status==='blocked'?'warn':''):''}</div>${draft?`<div class="draft-body">${esc(draft.body)}</div><div class="detail-actions"><button class="button secondary small" data-action="check-draft" data-id="${draft.id}">Check action readiness</button></div><p class="source">Sources: ${esc(draft.evidence_ids.join(', '))}</p>`:'<p class="hint">The sales agent will prepare a draft after reviewing the account evidence. All drafts remain local.</p>'}</div>${evaluator?`<div class="detail-section"><div class="section-label">EVALUATOR NOTES</div><p class="draft-body">${esc(evaluator.output.content)}</p></div>`:''}`;
 }
 
 function sourceLink(source) {
@@ -148,7 +168,7 @@ function researchDetail(a) {
 }
 
 function teamStrip() {
-  return `<div class="team-strip">${[['P','Account Prioritization','Assesses account fit'],['O','Orchestrator','Closes strategy discussions'],['R','Research','Checks account evidence'],['S','Sales','Prepares conversations'],['E','Evaluator','Challenges assumptions']].map(([initial,name,desc])=>`<div class="agent-chip"><span class="agent-avatar">${initial}</span><div><strong>${name}</strong><small>${desc}</small></div></div>`).join('')}</div>`;
+  return `<div class="team-strip">${[['T','Reply Triage','Routes incoming replies'],['P','Account Prioritization','Assesses account fit'],['O','Orchestrator','Closes strategy discussions'],['R','Research','Checks account evidence'],['S','Sales','Prepares conversations'],['E','Evaluator','Challenges assumptions']].map(([initial,name,desc])=>`<div class="agent-chip"><span class="agent-avatar">${initial}</span><div><strong>${name}</strong><small>${desc}</small></div></div>`).join('')}</div>`;
 }
 
 function renderStrategy() {
@@ -194,12 +214,24 @@ document.addEventListener('click',async event=>{
   if(button.dataset.close){document.getElementById(button.dataset.close).close();return;}
   if(button.dataset.action==='add-account'){document.getElementById('account-dialog').showModal();return;}
   if(button.dataset.action==='add-evidence'){document.getElementById('evidence-dialog').showModal();return;}
+  if(button.dataset.action==='triage-reply'){
+    const form=document.getElementById('reply-form');
+    form.reset();
+    form.dataset.accountId=selected;
+    form.dataset.requestKey=crypto.randomUUID();
+    document.getElementById('reply-hint').textContent=state.demo
+      ? 'Scripted example: How much does the pilot cost?'
+      : 'Paste the buyer’s own words. You will review the suggested next action.';
+    document.getElementById('reply-dialog').showModal();
+    return;
+  }
   if(button.id==='pause-button'){
     try{await api('pause',{paused:!state.config.paused});await refresh(true);}catch(e){toast(e.message,true);}return;
   }
   const action=button.dataset.action;if(!action)return;
   button.disabled=true;
   try {
+    if(action==='review-reply'){await api('reply-reviews',{task_id:button.dataset.id});toast('Reply marked reviewed.');}
     if(action==='priority'){await api('tasks',{kind:'account_priority',account_id:selected,request_key:crypto.randomUUID()});toast('Priority assessment queued.');}
     if(action==='review'){await api('tasks',{kind:'account_review',account_id:selected,request_key:crypto.randomUUID()});toast('Account review queued.');}
     if(action==='accept-finding' || action==='reject-finding'){await api('research-findings',{finding_id:button.dataset.id,decision:action==='accept-finding'?'accepted':'rejected'});toast('Finding reviewed.');}
@@ -215,10 +247,15 @@ document.addEventListener('click',async event=>{
 });
 
 document.addEventListener('submit',async event=>{
-  const form=event.target;if(!['account-form','evidence-form','strategy-form','settings-form','research-form'].includes(form.id))return;
+  const form=event.target;if(!['reply-form','account-form','evidence-form','strategy-form','settings-form','research-form'].includes(form.id))return;
   event.preventDefault();const button=form.querySelector('button[type="submit"]');button.disabled=true;
   const data=Object.fromEntries(new FormData(form));
   try {
+    if(form.id==='reply-form'){
+      await api('tasks',{kind:'reply_triage',account_id:form.dataset.accountId,reply_text:data.reply_text,request_key:form.dataset.requestKey});
+      document.getElementById('reply-dialog').close();
+      toast('Reply triage queued.');
+    }
     if(form.id==='account-form'){const result=await api('accounts',data);selected=result.id;document.getElementById('account-dialog').close();form.reset();toast('Account added with its first evidence record.');}
     if(form.id==='evidence-form'){await api('evidence',{...data,account_id:selected});document.getElementById('evidence-dialog').close();form.reset();toast('Evidence saved. Older drafts may need a new review.');}
     if(form.id==='research-form'){await api('tasks',{kind:'account_research',account_id:selected,question:data.question,request_key:crypto.randomUUID()});toast('Public research queued.');}

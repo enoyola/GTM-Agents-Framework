@@ -11,6 +11,7 @@ For example, the demo includes a fictional packaging company where artwork revis
 | **Account Prioritization** | Assesses an account against your target segment, qualification rubric and exclusions. Its fit decision cites evidence, explains the reason and identifies one fact to verify. Current assessments form the shortlist for strategy. |
 | **Research** | Writes an account brief from the evidence on file. It explains why the offer might fit and lists what Sales still needs to learn. In a strategy discussion, it proposes an approach independently of Sales. |
 | **Sales** | Uses the brief and the approved offer to draft a message for a specific recipient. If a credible message needs more evidence, it explains what is missing. In a strategy discussion, it contributes the seller’s perspective. |
+| **Reply Triage** | Reads a buyer reply you paste into Pipeline, identifies the request, quotes the words behind its interpretation and suggests an internal next action for you to review. |
 | **Evaluator** | Reviews another agent’s work. It checks research claims against citations, reads a draft from the recipient’s perspective, and challenges assumptions in strategy proposals. |
 | **Orchestrator** | Closes a strategy discussion. After reading both proposals and the critique, it records whether to keep the current approach, gather more evidence or propose a test. |
 
@@ -34,6 +35,8 @@ Leave the terminal running and open the [local dashboard](http://127.0.0.1:8765)
 
 To try prioritization, choose **Assess priority** on each fictional account in **Pipeline**. The shortlist shows the reasoning and the next fact to verify. In the scripted demo, Forma Packaging leads because of its documented artwork approval step. To see the ranking change, check that **Business setup → Priority exclusions** contains `Business has closed permanently.` (prefilled in a new demo). Add the observation `Business has closed permanently.` to that fictional account and assess it again. The demo recognizes this exact scenario. In Codex or API mode, the agent interprets the targeting rules and evidence.
 
+To try **Reply Triage**, select an account in **Pipeline**, choose **Triage a reply**, paste `How much does the pilot cost?` and select **Queue triage**. Compare the quoted words with the suggested pricing handoff to Sales, then select **Mark reviewed**. Try `Please ask our operations team.` for a referral or `Please remove me from your list.` for an opt-out. The offline demo recognizes canned examples and sends other wording to manual review. Codex and the API worker interpret free-form replies.
+
 Press `Ctrl+C` in the terminal to stop. Run the same command again to reopen your demo with its saved work.
 
 ## How the agents work together
@@ -43,6 +46,7 @@ Press `Ctrl+C` in the terminal to stop. Run the same command again to reopen you
 | Account prioritization | Assess each selected account → order by fit, breaking ties by domain | A shortlist of current strong and possible fits. Accounts needing research and excluded accounts retain their reasons in Pipeline. |
 | Public research | Collector → Extractor → Evaluator | A cited report and findings to accept or reject. |
 | Account review | Research → Sales → Evaluator | A message for human review when Sales and the Evaluator both recommend it, or an explanation of why it was held. |
+| Reply triage | Operator supplies reply → Reply Triage interprets it → operator reviews the recommendation | The original message, supporting quote, intent and proposed handoff. Marking it reviewed records your review. You decide separately whether to act. |
 | Strategy discussion | Research and Sales propose independently → Evaluator critiques both → Orchestrator decides | The two proposals, critique and decision. A proposed test can become an experiment brief. |
 
 ## Use your own workspace

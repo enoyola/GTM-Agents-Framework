@@ -6,6 +6,7 @@ import urllib.request
 
 from .store import DomainError
 from .research import RESEARCH_PROMPT, FINDINGS_SCHEMA, parse_search, validate_findings
+from .triage import TRIAGE_PROMPT, TRIAGE_SCHEMA, triage_context, validate_triage, demo_triage
 from .priority import PRIORITY_PROMPT, PRIORITY_SCHEMA, priority_context, validate_priority, demo_priority
 from .outreach import OUTREACH_POLICY
 
@@ -76,6 +77,9 @@ class FixtureProvider:
     def generate(self, role, context, previous):
         if not context['accounts'] or any(not a['is_demo'] for a in context['accounts']):
             raise DomainError('The scripted demo provider only accepts fictional demo accounts. Configure OpenAI for real accounts.')
+        if role == 'reply_triage':
+            scoped = triage_context(context)
+            return validate_triage(demo_triage(scoped), scoped), {'input_tokens':0,'output_tokens':0,'demo':True}
         if role == 'prioritizer':
             scoped = priority_context(context)
             return validate_priority(demo_priority(scoped), scoped), {'input_tokens':0,'output_tokens':0,'demo':True}
@@ -112,7 +116,10 @@ class OpenAIProvider:
     def generate(self, role, context, previous):
         if not self.ready:
             raise DomainError('Set GTM_MODEL and OPENAI_API_KEY in the server environment to use model-backed agents.')
-        if role == 'prioritizer':
+        if role == 'reply_triage':
+            context = triage_context(context)
+            instructions, schema, validate = TRIAGE_PROMPT, TRIAGE_SCHEMA, validate_triage
+        elif role == 'prioritizer':
             context = priority_context(context)
             instructions, schema, validate = PRIORITY_PROMPT, PRIORITY_SCHEMA, validate_priority
         else:

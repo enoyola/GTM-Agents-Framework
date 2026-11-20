@@ -3,6 +3,7 @@ import json
 import sqlite3
 import time
 
+from .triage import TRIAGE_PROMPT, TRIAGE_SCHEMA, triage_context, validate_triage
 from .priority import PRIORITY_PROMPT, PRIORITY_SCHEMA, priority_context, validate_priority
 from .providers import SHARED, ROLE_PROMPTS, RESULT_SCHEMA, validate_result
 from .research import RESEARCH_PROMPT, FINDINGS_SCHEMA, public_url, validate_findings
@@ -18,6 +19,7 @@ class CodexProvider:
 
 
 def workflow(kind):
+    if kind=='reply_triage':return ['reply_triage']
     if kind=='account_priority':return ['prioritizer']
     if kind=='account_research':return ['research_search','research_extract','evaluator']
     if kind=='strategy':return ['research','sales','evaluator','orchestrator']
@@ -116,7 +118,11 @@ class CodexBridge:
             if existing:return json.loads(existing['packet'])
             context={**task['input'],'kind':task['kind']}
             previous={r:runs[r] for r in needed}
-            if role=='prioritizer':
+            if role=='reply_triage':
+                context=triage_context(context)
+                instructions=TRIAGE_PROMPT
+                schema=TRIAGE_SCHEMA
+            elif role=='prioritizer':
                 context=priority_context(context)
                 instructions=PRIORITY_PROMPT
                 schema=PRIORITY_SCHEMA
@@ -157,7 +163,8 @@ class CodexBridge:
                 raise DomainError('Assignment already has a different result or agent identity.',409)
             task=self._task(db,row['task_id'])
             packet=json.loads(row['packet']);role=row['role'];context=packet['context']
-            if role=='prioritizer':validated=validate_priority(result,context)
+            if role=='reply_triage':validated=validate_triage(result,context)
+            elif role=='prioritizer':validated=validate_priority(result,context)
             elif role=='research_search':validated=validate_report(result)
             elif role=='research_extract':validated=validate_findings(result,context['report'])
             else:validated=validate_result(result,context)

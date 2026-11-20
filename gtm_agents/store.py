@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS evidence (
 );
 CREATE TABLE IF NOT EXISTS tasks (
  id TEXT PRIMARY KEY, account_id TEXT REFERENCES accounts(id),
- kind TEXT NOT NULL CHECK(kind IN ('account_review','strategy','account_research','account_priority')),
+ kind TEXT NOT NULL CHECK(kind IN ('account_review','strategy','account_research','account_priority','reply_triage')),
  status TEXT NOT NULL CHECK(status IN ('queued','running','completed','failed','canceled')),
  request_key TEXT NOT NULL UNIQUE, input TEXT NOT NULL, output TEXT,
  lease_token TEXT, lease_until REAL, attempts INTEGER NOT NULL DEFAULT 0,
@@ -74,6 +74,9 @@ CREATE TABLE IF NOT EXISTS drafts (
  evidence_ids TEXT NOT NULL, account_version INTEGER NOT NULL,
  config_version INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'needs_review',
  created_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS reply_reviews (
+ task_id TEXT PRIMARY KEY REFERENCES tasks(id), reviewed_at REAL NOT NULL
 );
 CREATE TABLE IF NOT EXISTS account_priorities (
  account_id TEXT PRIMARY KEY REFERENCES accounts(id), task_id TEXT NOT NULL UNIQUE REFERENCES tasks(id),
@@ -124,7 +127,7 @@ class Store:
             db.execute('PRAGMA foreign_keys=OFF')
             db.execute('BEGIN IMMEDIATE')
             version = db.execute('PRAGMA user_version').fetchone()[0]
-            if version > 4:
+            if version > 5:
                 raise DomainError('This database was created by a newer runtime. Use a compatible application version.')
             if db.execute("SELECT name FROM sqlite_master WHERE name='metadata'").fetchone():
                 existing=db.execute("SELECT value FROM metadata WHERE key='mode'").fetchone()
@@ -132,7 +135,7 @@ class Store:
                     raise DomainError('This database belongs to a different workspace mode. Use a separate demo database.')
             # Rebuild only the task CHECK constraint; keep all IDs and referencing rows.
             old=db.execute("SELECT sql FROM sqlite_master WHERE name='tasks'").fetchone()
-            if old and 'account_priority' not in old['sql']:
+            if old and 'reply_triage' not in old['sql']:
                 create=SCHEMA.split('CREATE TABLE IF NOT EXISTS tasks (')[1].split(');')[0]
                 db.execute('CREATE TABLE tasks_v2 ('+create+');')
                 db.execute('INSERT INTO tasks_v2 SELECT * FROM tasks')
@@ -164,7 +167,8 @@ class Store:
                     FROM latest AS l WHERE l.account_id=a.id AND l.seq=1 AND l.status='blocked'
                         AND a.suppressed=0 AND a.stage='drafted'
                 """)
-                db.execute("PRAGMA user_version=4")
+            if version < 5:
+                db.execute("PRAGMA user_version=5")
 
     @contextmanager
     def connect(self):
@@ -292,10 +296,15 @@ class Store:
         if executor not in ("api","codex"):raise DomainError("Unknown executor.")
         if executor=="codex" and self.demo:raise DomainError("Use the real workspace for Codex executions.")
         kind = data.get('kind', 'account_review')
-        if kind not in ('account_review', 'strategy', 'account_research', 'account_priority'):
+        if kind not in ('account_review', 'strategy', 'account_research', 'account_priority', 'reply_triage'):
             raise DomainError('Unknown task kind.')
         if kind=='account_research' and self.demo:
             raise DomainError('Web research is available only in the real workspace.',409)
+        reply_text = ''
+        if kind == 'reply_triage':
+            reply_text = required(data.get('reply_text'), 'Inbound reply', 5000)
+        elif data.get('reply_text'):
+            raise DomainError('Only reply triage accepts inbound reply text.')
         question=required(data.get('question'),'Public research focus',2000) if kind=='account_research' else ''
         request_key = required(data.get('request_key'), 'Request key', 200)
         research_ids=data.get('research_task_ids',[])
@@ -306,6 +315,8 @@ class Store:
             existing = db.execute("SELECT * FROM tasks WHERE request_key=?", (request_key,)).fetchone()
             if existing:
                 same = existing['kind'] == kind and existing['account_id'] == data.get('account_id') and json.loads(existing['input']).get('executor','api')==executor
+                if kind == 'reply_triage':
+                    same = same and json.loads(existing['input']).get('reply_text') == reply_text
                 if kind in ('strategy','account_research'):
                     same = same and json.loads(existing['input'])['question'] == data.get('question', '').strip()
                 same = same and json.loads(existing['input']).get('research_task_ids',[])==research_ids
@@ -316,7 +327,7 @@ class Store:
             if config['paused']:
                 raise DomainError('The team is paused. Resume before queuing work.', 409)
             fields=('business_name','offer','approved_claims') if kind=='account_research' else ('business_name','offer','segment','approved_claims')
-            if not all(config.get(k) for k in fields):
+            if kind != 'reply_triage' and not all(config.get(k) for k in fields):
                 raise DomainError('Set the business, offer, segment and approved claims before running agents.', 409)
             shortlist = []
             account_id = data.get('account_id') if kind != 'strategy' else None
@@ -338,12 +349,18 @@ class Store:
                 if not accounts:
                     raise DomainError('Add at least one account with evidence first.', 409)
             evidence = []
-            for account in accounts:
+            context = {'executor':executor, 'config': config, 'accounts': accounts, 'evidence': evidence, 'question': question}
+            if kind == 'reply_triage':
+                # Keep the immutable reply plus state needed for version checks and the demo boundary.
+                context['config'] = {'version': config['version']}
+                context['accounts'] = [{k: account[k] for k in ('id','version','is_demo')}]
+                context['reply_text'] = reply_text
+            else:
                 query = "SELECT * FROM evidence WHERE account_id=? ORDER BY created_at DESC LIMIT 20"
                 if kind == 'account_priority':
                     query = "SELECT * FROM evidence WHERE account_id=? ORDER BY claim, source, kind, id"
-                evidence.extend(dict(r) for r in db.execute(query, (account['id'],)))
-            context = {'executor':executor, 'config': config, 'accounts': accounts, 'evidence': evidence, 'question': question}
+                for account in accounts:
+                    evidence.extend(dict(r) for r in db.execute(query, (account['id'],)))
             if shortlist:
                 context['shortlist'] = shortlist
                 # Include the actual evidence behind a priority even if it predates the recent notes.
@@ -460,7 +477,7 @@ class Store:
                           evidence_ids=excluded.evidence_ids""",
                        (account['id'], task['id'], account['version'], task['input']['config']['version'],
                         result['fit'], result['reason'], result['missing_fact'], encode(result['evidence_ids'])))
-        else:
+        elif task['kind'] == 'strategy':
             result = runs['orchestrator']
             db.execute("INSERT INTO discussions VALUES (?,?,?,?,?,?,?,?)",
                        (uid('discussion'), task['id'], task['input']['question'], result['content'], result['recommendation'], result['experiment_hypothesis'], encode(result['evidence_ids']), time.time()))
@@ -584,11 +601,32 @@ class Store:
         return [{**dict(row), 'current': bool(row['current']), 'evidence_ids': json.loads(row['evidence_ids'])}
                 for row in rows]
 
+    def review_reply(self, task_id):
+        with self.write() as db:
+            task = db.execute("SELECT kind,status,account_id FROM tasks WHERE id=?", (task_id,)).fetchone()
+            if not task or task['kind'] != 'reply_triage':
+                raise DomainError('Reply triage not found.', 404)
+            if task['status'] != 'completed':
+                raise DomainError('Triage must complete before review.', 409)
+            inserted = db.execute("INSERT OR IGNORE INTO reply_reviews VALUES (?,?)", (task_id,time.time()))
+            if inserted.rowcount:
+                self.event(db, 'reply.reviewed', {}, task['account_id'], task_id)
+        return {'reviewed': True}
+
     def snapshot(self):
         with self.connect() as db:
             db.execute('BEGIN')
             result = {'config': self.config(db), 'demo': self.demo, 'outbound_enabled':False}
             result['priorities'] = self.priorities(db, result['config']['version'])
+            replies = db.execute("""
+                SELECT t.id AS task_id, t.account_id, t.status, t.error, t.created_at, r.reviewed_at,
+                       json_extract(t.input,'$.reply_text') AS reply_text,
+                       json_extract(t.output,'$.reply_triage') AS result
+                FROM tasks t LEFT JOIN reply_reviews r ON r.task_id=t.id
+                WHERE t.kind='reply_triage' ORDER BY t.created_at DESC, t.rowid DESC LIMIT 300
+            """)
+            result['reply_triages'] = [{**dict(row), 'result': json.loads(row['result']) if row['result'] else None}
+                                       for row in replies]
             for table in ('accounts','evidence','tasks','agent_runs','drafts','discussions','experiments','events','research_findings'):
                 order = 'id' if table=='events' else 'created_at'
                 rows = [dict(r) for r in db.execute(f'SELECT * FROM {table} ORDER BY {order} DESC LIMIT 300')]

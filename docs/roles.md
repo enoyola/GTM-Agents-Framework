@@ -1,6 +1,6 @@
 # Role descriptions
 
-Account Prioritization, Research, Sales, Evaluator and Orchestrator participate in the local workflow. Public research has separate collection and extraction assignments. The deal function, delivery and playbook promotion below describe the full design. The runtime produces internal artifacts for review.
+Account Prioritization, Research, Sales, Reply Triage, Evaluator and Orchestrator participate in the local workflow. Public research has separate collection and extraction assignments. The deal function, delivery and playbook promotion below describe the full design. The runtime produces internal artifacts for review.
 
 ## Shared instructions for every role
 
@@ -113,6 +113,12 @@ The account has a truthful, relevant next step or a recorded reason to stop. Dra
 Read the draft from the recipient’s position. Check relevance, trust, concrete value, response burden, channel and stage, and natural language. For cold messaging, introduce the sender, offer something relevant and finish with one low-effort invitation. A warm reply should answer what the recipient actually asked. Save the draft for operator review only when Sales and Evaluator independently recommend it.
 
 See the [executable review policy](../gtm_agents/outreach.py).
+
+## Reply Triage
+
+Read one operator-supplied inbound message. Identify its primary intent, quote the exact words that support the classification and summarize the request. If the reply contains multiple requests, preserve that context and prioritize an explicit opt-out. A referral can identify a team; it gives the operator a handoff to review.
+
+Pricing, buyer questions and interest go to Sales for review. Referrals suggest an internal handoff, declines suggest closure and opt-outs suggest suppression review. Automatic replies and ambiguous wording go to the operator. Only the reply text reaches the role. Each message keeps its own history in Pipeline with the classification and review timestamp. Any contact or account change requires a separate operator action.
 
 ## Deal function
 
