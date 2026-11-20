@@ -1,0 +1,10 @@
+[project]
+name = "gtm-agents"
+version = "0.3.0"
+description = "Local GTM control room and durable shadow agent runtime"
+requires-python = ">=3.11"
+dependencies = []
+
+
+[project.optional-dependencies]
+mcp = ["mcp==1.30.0"]

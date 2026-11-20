@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GTM Agents</title>
+  <link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="GTM Agents home"><img src="/favicon.svg" width="36" height="36" alt=""><span>GTM Agents<small>LOCAL WORKSPACE</small></span></a>
+      <div class="nav-label">CONTROL ROOM</div>
+      <nav aria-label="Workspace"><button data-view="pipeline" class="nav-item active"><span aria-hidden="true">▤</span>Pipeline</button><button data-view="strategy" class="nav-item"><span aria-hidden="true">◎</span>Strategy room</button><button data-view="learning" class="nav-item"><span aria-hidden="true">↗</span>Learning</button><button data-view="activity" class="nav-item"><span aria-hidden="true">≋</span>Activity</button><button data-view="settings" class="nav-item"><span aria-hidden="true">⚙</span>Business setup</button></nav>
+      <div class="sidebar-bottom"><div class="team-mark"><span class="live-dot"></span> YOUR GTM TEAM</div><div class="team-avatars"><span title="Orchestrator">O</span><span title="Research">R</span><span title="Sales">S</span><span title="Evaluator">E</span></div><p>One shared context.<br>Every decision traceable.</p><div class="local-label">LOCAL WORKSPACE <span>v0.3</span></div></div>
+    </aside>
+    <main>
+      <header class="topbar"><span>Workspace <span class="slash">/</span> <strong>Local</strong></span><div class="top-actions"><span class="badge">Outbound off</span><button id="pause-button" class="text-button">Pause team</button></div></header>
+      <div id="workspace-banner" class="workspace-banner"></div>
+      <div id="content" class="content" aria-live="polite"><div class="empty">Loading your workspace…</div></div>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <dialog id="account-dialog"><form id="account-form"><div class="dialog-heading"><h2>Add an account</h2><button type="button" class="close-button" data-close="account-dialog" aria-label="Close">×</button></div><p class="muted">Start with an observation or a hypothesis to research. No message will be sent.</p><label>Company name<input name="name" required maxlength="160" placeholder="Company name"></label><label>Company domain<input name="domain" required maxlength="255" placeholder="company.example"></label><div class="form-grid"><label>Industry or segment<input name="segment" maxlength="500" placeholder="e.g. Distribution"></label><label>Contact name or role<input name="contact" maxlength="500" placeholder="Optional"></label></div><label>Initial note type<select name="kind"><option value="observation">Observation</option><option value="hypothesis">Hypothesis to research</option></select></label><label>What do we know?<textarea name="claim" required maxlength="5000" rows="3" placeholder="Describe an observation, not an assumed pain."></textarea></label><label>Source<input name="source" required maxlength="1000" placeholder="URL, document title, or customer conversation"></label><div class="dialog-actions"><button type="button" class="button secondary" data-close="account-dialog">Cancel</button><button class="button" type="submit">Create account</button></div></form></dialog>
+  <dialog id="evidence-dialog"><form id="evidence-form"><div class="dialog-heading"><h2>Add evidence</h2><button type="button" class="close-button" data-close="evidence-dialog" aria-label="Close">×</button></div><label>Evidence type<select name="kind"><option value="observation">Observation</option><option value="customer_statement">Customer statement</option><option value="hypothesis">Hypothesis to test</option></select></label><label>Statement<textarea name="claim" required maxlength="5000" rows="4"></textarea></label><label>Source<input name="source" required maxlength="1000"></label><div class="dialog-actions"><button class="button" type="submit">Save evidence</button></div></form></dialog>
+  <dialog id="policy-dialog"><div class="dialog-heading"><h2>Action readiness</h2><button type="button" class="close-button" data-close="policy-dialog" aria-label="Close">×</button></div><div id="policy-result"></div></dialog>
+</body></html>

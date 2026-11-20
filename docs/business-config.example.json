@@ -1,0 +1,86 @@
+{
+  "schema_version": "1.0",
+  "status": "unconfigured_example",
+  "workspace_id": "internal-pilot",
+  "business": {
+    "name": null,
+    "offer_id": null,
+    "offer_version": null,
+    "approved_claims_source": null,
+    "sender_identity": null,
+    "owner_id": null
+  },
+  "audience": {
+    "segment_definition": null,
+    "inclusion_rules": [],
+    "exclusion_rules": [],
+    "geographies": [],
+    "languages": []
+  },
+  "connections": {
+    "crm": null,
+    "research_provider": null,
+    "outreach_provider": null,
+    "calendar": null,
+    "proposal_provider": null,
+    "secret_references": []
+  },
+  "execution": {
+    "mode": "shadow",
+    "outbound_enabled": false,
+    "binding_acceptance_enabled": false,
+    "initial_channel": null,
+    "allowed_external_actions": [],
+    "require_current_account_version": true,
+    "one_conversation_owner_per_account": true,
+    "on_unknown_provider_result": "reconcile_before_retry",
+    "on_missing_required_config": "block_dependent_action"
+  },
+  "limits": {
+    "currency": null,
+    "campaign_spend_ceiling": null,
+    "daily_spend_ceiling": null,
+    "daily_outbound_ceiling": null,
+    "per_contact_frequency_policy": null,
+    "task_tool_call_ceiling": null,
+    "task_duration_seconds": null,
+    "retry_ceiling": null,
+    "proposed_discussion_round_ceiling": 3,
+    "proposed_discussion_participant_ceiling": 4
+  },
+  "commercial_authority": {
+    "policy_version": null,
+    "catalog_source": null,
+    "currency": null,
+    "price_floor_rules": [],
+    "permitted_concessions": [],
+    "concession_combination_rules": [],
+    "approved_payment_terms": [],
+    "approved_contract_template": null,
+    "acceptance_owner": null,
+    "exception_owner": null
+  },
+  "learning": {
+    "automatic_verified_fact_updates": true,
+    "automatic_playbook_promotion": false,
+    "experiment_traffic_fraction": null,
+    "assignment_unit": "account",
+    "primary_metric": null,
+    "qualification_rubric": null,
+    "outcome_window_days": null,
+    "analysis_method": null,
+    "promotion_rule": null,
+    "stop_rules": [],
+    "policy_changes_by_agents_allowed": false
+  },
+  "operations": {
+    "policy_version": null,
+    "contact_eligibility_policy": null,
+    "suppression_source": null,
+    "retention_policy": null,
+    "owner_digest_schedule": null,
+    "owner_digest_timezone": null,
+    "global_pause": true,
+    "audit_enabled": true
+  }
+}

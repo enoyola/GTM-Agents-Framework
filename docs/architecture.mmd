@@ -1,0 +1,91 @@
+%% Target-state diagrams; sending, negotiation and measured learning are not implemented.
+%% DIAGRAM 1: Component architecture. Render diagrams separately.
+flowchart TD
+    Owner[Owner: goals, offer, budget, authority] --> UI[Control room]
+    UI --> Workflow[Durable workflow and task ownership]
+    Workflow --> Manager[GTM orchestrator]
+    Manager --> Research[Research specialist]
+    Manager --> Sales[Sales specialist]
+    Sales <--> Research
+    Sales <--> Deal[Deal function: optional separate agent]
+    Research --> Gateway[Policy and tool gateway]
+    Sales --> Gateway
+    Deal --> Gateway
+    Gateway --> Connectors[CRM, research, outreach, proposals]
+    Connectors --> Events[Authoritative outcomes and events]
+    Events --> Workflow
+    Events --> Memory[Shared records and evidence]
+    Memory --> Manager
+    Memory --> Evaluator[Independent evaluator]
+    Evaluator --> Playbooks[Versioned playbooks]
+    Playbooks --> Manager
+
+%% DIAGRAM 2: Discussion and learning cycle.
+flowchart TD
+    Evidence[New evidence or mature outcomes] --> Proposals[Independent proposals]
+    Proposals --> Challenge[Challenge assumptions and alternatives]
+    Challenge --> Decision[Orchestrator decision]
+    Decision -->|Test a hypothesis| Design[Preregister baseline, metric, allocation, stop rules]
+    Decision -->|Outside authority| Owner[Owner decision]
+    Decision -->|No useful change| Keep[Retain current playbook]
+    Design --> Test[Bounded live experiment]
+    Test --> Review[Evaluator reviews mature outcomes]
+    Review -->|Supported within scope| Version[Promote version with rollback target]
+    Review -->|Worse| Reject[Reject candidate]
+    Review -->|Insufficient evidence| Pending[Continue as planned or mark inconclusive]
+    Version --> Evidence
+    Reject --> Evidence
+    Pending --> Evidence
+
+%% DIAGRAM 3: Account lifecycle.
+stateDiagram-v2
+    [*] --> Discovered
+    Discovered --> Researched: sourced account brief
+    Researched --> Eligible: inclusion and exclusion checks
+    Eligible --> Ready: policy, contact, offer and budget valid
+    Ready --> Contacted: provider acknowledgment
+    Contacted --> Engaged: relevant reply
+    Engaged --> Qualified: qualification rubric met
+    Qualified --> Proposal: approved offer delivered
+    Proposal --> Negotiation: buyer requests revised terms
+    Proposal --> Won: authoritative acceptance
+    Negotiation --> Won: authoritative acceptance
+    Negotiation --> Lost: confirmed loss
+    Engaged --> Nurture: future timing
+    Nurture --> Ready: eligibility rechecked
+    Contacted --> Suppressed: opt-out
+    Engaged --> Suppressed: opt-out
+    Ready --> Suppressed: eligibility revoked
+    Won --> [*]
+    Lost --> [*]
+    Suppressed --> [*]
+    note right of Suppressed
+      Suppression is also a global override
+      from any active stage. No automatic revival.
+    end note
+
+%% DIAGRAM 4: External action sequence.
+sequenceDiagram
+    participant A as Sales agent
+    participant W as Workflow service
+    participant G as Policy gateway
+    participant P as Provider
+    participant D as Durable records
+    A->>W: Structured send request with state version
+    W->>D: Acquire account lease and inspect current state
+    W->>G: Validate permissions, suppression, terms and budget
+    G-->>W: Allow or reject with policy version
+    alt Allowed and current
+        W->>D: Atomically reserve budget and create outbox action
+        W->>P: Send with supported deduplication key
+        alt Provider acknowledgment
+            P-->>W: Provider message ID
+            W->>D: Record success and settle reservation
+        else Ambiguous timeout
+            W->>D: Record unknown; prohibit blind resend
+            W->>P: Reconcile provider state
+            W->>D: Record known result or queue exception
+        end
+    else Rejected or stale
+        W->>D: Record rejection and recovery condition
+    end

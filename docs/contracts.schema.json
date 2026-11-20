@@ -1,0 +1,412 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GTM Agent Exchange Contracts",
+  "description": "Structural starter contracts. Application policy, relationships, state transitions and experimental validity require additional checks.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/discussion_proposal"
+    },
+    {
+      "$ref": "#/$defs/experiment"
+    },
+    {
+      "$ref": "#/$defs/playbook_change"
+    },
+    {
+      "$ref": "#/$defs/action_request"
+    }
+  ],
+  "$defs": {
+    "discussion_proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "discussion_proposal"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "discussion_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "enum": [
+            "research",
+            "sales",
+            "deal",
+            "evaluator",
+            "orchestrator"
+          ]
+        },
+        "observation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hypothesis": {
+          "type": "string",
+          "minLength": 1
+        },
+        "proposed_change": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "alternative_explanation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "falsification_condition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_business_effect": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "workspace_id",
+        "discussion_id",
+        "role",
+        "observation",
+        "hypothesis",
+        "proposed_change",
+        "evidence_ids",
+        "alternative_explanation",
+        "falsification_condition",
+        "expected_business_effect"
+      ]
+    },
+    "experiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "experiment"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "registered",
+            "running",
+            "paused",
+            "completed",
+            "inconclusive",
+            "stopped"
+          ]
+        },
+        "hypothesis": {
+          "type": "string",
+          "minLength": 1
+        },
+        "segment_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "offer_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseline_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "candidate_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "changed_variable": {
+          "type": "string",
+          "minLength": 1
+        },
+        "assignment_unit": {
+          "const": "account"
+        },
+        "allocation_fraction": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "primary_metric": {
+          "type": "string",
+          "minLength": 1
+        },
+        "denominator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outcome_window_days": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "analysis_plan": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sample_size_rationale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "promotion_rule": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stop_rules": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "budget_amount": {
+          "type": "number",
+          "minimum": 0
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "workspace_id",
+        "status",
+        "hypothesis",
+        "segment_id",
+        "offer_version",
+        "policy_version",
+        "baseline_version",
+        "candidate_version",
+        "changed_variable",
+        "assignment_unit",
+        "allocation_fraction",
+        "primary_metric",
+        "denominator",
+        "outcome_window_days",
+        "analysis_plan",
+        "sample_size_rationale",
+        "promotion_rule",
+        "stop_rules",
+        "budget_amount",
+        "currency",
+        "owner_id"
+      ]
+    },
+    "playbook_change": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "playbook_change"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "playbook_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "testing",
+            "validated",
+            "active",
+            "rejected",
+            "reverted"
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "change_summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "experiment_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evaluation_summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rollback_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision_owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review_trigger": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "workspace_id",
+        "playbook_id",
+        "from_version",
+        "to_version",
+        "status",
+        "scope",
+        "change_summary",
+        "evidence_ids",
+        "policy_version",
+        "evaluation_summary",
+        "rollback_version",
+        "decision_owner",
+        "review_trigger"
+      ]
+    },
+    "action_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "action_request"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "actor_role": {
+          "enum": [
+            "sales",
+            "deal",
+            "orchestrator",
+            "research"
+          ]
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "account_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "account_state_version": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "policy_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "playbook_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action_type": {
+          "enum": [
+            "send_message",
+            "send_proposal",
+            "create_calendar_event",
+            "update_crm"
+          ]
+        },
+        "payload_reference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requested_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "workspace_id",
+        "actor_role",
+        "task_id",
+        "account_id",
+        "account_state_version",
+        "policy_version",
+        "playbook_version",
+        "action_type",
+        "payload_reference",
+        "evidence_ids",
+        "idempotency_key",
+        "requested_at"
+      ]
+    }
+  }
+}
