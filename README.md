@@ -4,6 +4,17 @@ GTM Agents helps a go-to-market team decide who to approach, what it can credibl
 
 For example, the demo includes a fictional packaging company where artwork revisions need approval before production. That observation gives Sales a handoff to ask about. The Evaluator can then flag any claim about delays or costs that the observation alone cannot support.
 
+## What each agent does
+
+| Agent | Its job |
+| --- | --- |
+| **Research** | Writes an account brief from the evidence on file. It explains why the offer might fit and lists what Sales still needs to learn. In a strategy discussion, it proposes an approach independently of Sales. |
+| **Sales** | Uses the brief and the approved offer to draft a message for a specific recipient. If a credible message needs more evidence, it explains what is missing. In a strategy discussion, it contributes the seller’s perspective. |
+| **Evaluator** | Reviews another agent’s work. It checks research claims against citations, reads a draft from the recipient’s perspective, and challenges assumptions in strategy proposals. |
+| **Orchestrator** | Closes a strategy discussion. After reading both proposals and the critique, it records whether to keep the current approach, gather more evidence or propose a test. |
+
+Public research has two additional assignments. The **Collector** looks up the company and writes a report with citations. The **Extractor** reads that report, separates observations from hypotheses and links each finding to its source. The Evaluator reviews the findings before you decide which to accept.
+
 ## Try the demo
 
 You need Git and Python 3.11 or newer. The demo runs on your computer with Python’s standard library, three fictional accounts and scripted agent responses. You can try it without an API key or a Codex account.
@@ -24,11 +35,11 @@ Press `Ctrl+C` in the terminal to stop. Run the same command again to reopen you
 
 ## How the agents work together
 
-| When you want to… | Who does what | What you review |
+| Workflow | Order of work | What you review |
 | --- | --- | --- |
-| Research a company | A **Collector** gathers public sources. An **Extractor** turns the cited report into individual findings. The **Evaluator** checks whether the report supports each claim. | A cited report and candidate findings. You decide which findings to accept as account evidence. |
-| Prepare a first message | **Research** briefs **Sales** on the account evidence and open questions. Sales proposes a message. The **Evaluator** reads that exact draft from the recipient’s perspective and checks its claims. | A draft for human review if Sales and the Evaluator both recommend it, or a record of why the draft was held. |
-| Decide what to test | **Research** and **Sales** propose approaches independently. The **Evaluator** challenges both. The **Orchestrator** weighs the proposals and critique and records a decision. | Both proposals, the critique and the decision. If the decision calls for a test, you can save an experiment brief. |
+| Public research | Collector → Extractor → Evaluator | A cited report and findings to accept or reject. |
+| Account review | Research → Sales → Evaluator | A message for human review when Sales and the Evaluator both recommend it, or an explanation of why it was held. |
+| Strategy discussion | Research and Sales propose independently → Evaluator critiques both → Orchestrator decides | The two proposals, critique and decision. A proposed test can become an experiment brief. |
 
 ## Use your own workspace
 
